@@ -1,0 +1,29 @@
+# The single source of truth for the shared `rockslope` environment
+# (architecture.md decision D2 — one env for the shell and all five engines).
+#
+#   conda env create -f environment.yml
+#   conda activate rockslope
+#
+# Rule 7 of CLAUDE.md: ask Mohammad before adding anything to this file.
+name: rockslope
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  # --- scientific stack (shared by all engines) ---
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  # --- manifests / params ---
+  - pyyaml
+  - jsonschema
+  # --- test runner (required by the session-1 acceptance criteria) ---
+  - pytest
+  - pip
+  - pip:
+      # --- point-cloud I/O ---
+      - laspy[lazrs]
+      # --- the shell UI (session 2); never imported by engines or by core/ ---
+      - PySide6
