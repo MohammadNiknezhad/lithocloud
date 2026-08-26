@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+# The shell package lives under app/, so tests can `import rockslope_studio`
+# without the repo having to be pip-installed (Spyder-friendly).
+pythonpath = ["app"]
+testpaths = ["tests"]
+addopts = "-q"
