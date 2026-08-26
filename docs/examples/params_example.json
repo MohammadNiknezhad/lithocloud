@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "voxel_size",
+      "label": "Voxel size (m)",
+      "type": "float",
+      "default": 0.05,
+      "min": 0.001,
+      "max": 5.0,
+      "help": "Edge length of the subsampling voxel. Smaller keeps more points."
+    },
+    {
+      "key": "min_points_per_voxel",
+      "label": "Minimum points per voxel",
+      "type": "int",
+      "default": 1,
+      "min": 1,
+      "max": 1000,
+      "help": "Voxels with fewer points than this are dropped as noise."
+    },
+    {
+      "key": "method",
+      "label": "Representative point",
+      "type": "choice",
+      "default": "centroid",
+      "choices": ["centroid", "nearest", "first"],
+      "help": "Which point represents a voxel: its centroid, the real point nearest the centroid, or the first point encountered."
+    },
+    {
+      "key": "keep_intensity",
+      "label": "Keep intensity",
+      "type": "bool",
+      "default": true,
+      "help": "Carry the intensity field through to the output cloud."
+    },
+    {
+      "key": "output_name",
+      "label": "Output file name",
+      "type": "str",
+      "default": "subsampled.laz",
+      "help": "Written inside the run folder. Extension decides the LAS/LAZ format."
+    }
+  ]
+}

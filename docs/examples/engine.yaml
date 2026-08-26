@@ -1,0 +1,103 @@
+# ============================================================================
+#  REFERENCE engine manifest - schema v1
+#
+#  This is the pair that sessions 3-7 copy when they wrap a real engine.
+#  It is not a real engine: nothing here is ever executed. `tests/` load it and
+#  assert it validates, so this file cannot drift away from the loader.
+#
+#  Validate any manifest with:
+#      python -c "from rockslope_studio.core import load_manifest; \
+#                 load_manifest('engines/<name>/engine.yaml')"
+# ============================================================================
+
+# Unique. Must equal the engine's folder name under engines/.
+id: example
+
+# What the user sees in the engine list.
+name: Example Engine
+
+# The engine's own version. Recorded in every run manifest and every
+# provenance sidecar - this is what makes a result reproducible, so bump it
+# whenever the engine's behaviour changes.
+version: 1.0.0
+
+# Optional, shown as a tooltip / description in the shell.
+description: >
+  Reference manifest for the studio. Shows every field of schema v1: several
+  actions, all input flavours, the params file, and the command template.
+
+actions:
+  # -- a normal, non-interactive action ------------------------------------
+  - id: subsample
+    label: Subsample a cloud
+    description: Voxel-grid subsampling, the simplest possible example.
+    # false (the default) -> the shell runs it in the background and shows the
+    # engine's stdout in the log panel.
+    interactive: false
+    inputs:
+      # key   how the command template refers to it: {input:cloud}
+      # type  one of: pointcloud, transform, table, figure, map, report, model
+      #       the shell offers only artifacts of this type in the picker
+      - {key: cloud, type: pointcloud}
+    outputs:
+      # Outputs may not be 'multiple' or 'optional': every declared output is
+      # registered as exactly one artifact when the run succeeds.
+      - {key: subsampled, type: pointcloud}
+      - {key: stats, type: table}
+    # Path to this action's params JSON, relative to the engine folder.
+    # Omit the field entirely for an action that takes no parameters.
+    params: params_example.json
+
+  # -- several inputs, one of them optional, one multi-valued ---------------
+  - id: compare
+    label: Compare clouds against a reference
+    inputs:
+      - {key: reference, type: pointcloud}
+      # multiple: the user may pick several artifacts; the command template
+      # receives them space-separated.
+      - {key: cloud, type: pointcloud, multiple: true}
+      # optional: the run may proceed without it; {input:mask} becomes empty.
+      - {key: mask, type: pointcloud, optional: true}
+    outputs:
+      - {key: report, type: report}
+      - {key: figure, type: figure}
+
+  # -- an action that asks the user questions in a console ------------------
+  - id: pick_points
+    label: Pick tie points (interactive)
+    description: >
+      Opens the engine's own console and matplotlib windows exactly as it does
+      today. The studio still owns the run folder and registers the outputs.
+    # true -> the shell launches this in a NEW CONSOLE WINDOW so the engine's
+    # input() prompts and plot windows behave as they always have.
+    # Architecture section 7: interactive steps are kept as they are in v1.
+    interactive: true
+    inputs:
+      - {key: reference, type: pointcloud}
+      - {key: align, type: pointcloud}
+    outputs:
+      - {key: transform, type: transform}
+
+run:
+  # ONE template, shared by every action.
+  #
+  # Placeholders the shell fills:
+  #   {python}       the interpreter of the active `rockslope` env
+  #   {action}       the id of the action being run
+  #   {params_file}  the params JSON the shell wrote for THIS run
+  #                  (required whenever any action declares `params`)
+  #   {run_dir}      the run folder; the engine writes all its outputs here
+  #   {input:<key>}  the file(s) chosen for that input slot
+  #
+  # An {input:<key>} only has to be declared by at least one action, so a
+  # multi-action engine (like geohazard's six stages) can share one template.
+  command: >-
+    {python} -m example_engine {action}
+    --params {params_file}
+    --out {run_dir}
+    --cloud {input:cloud}
+
+  # Working directory for the subprocess, relative to this engine folder.
+  # "." for a full engine package that lives here; the adapters for tlsphoto,
+  # ricp and geohazard point at their sibling repo, e.g. "../../../tlsphoto".
+  cwd: .
