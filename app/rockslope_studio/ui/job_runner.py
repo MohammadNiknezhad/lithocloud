@@ -46,6 +46,8 @@ from rockslope_studio.core import (
 from rockslope_studio.core.runs import create_run_dir
 from rockslope_studio.core._util import atomic_write_json
 
+from .input_files import ExternalFile
+
 OUTPUTS_NAME = "outputs.json"
 PARAMS_NAME = "params.json"
 #: Adapters write their early-failure message here (approved 2026-08-27), so
@@ -55,6 +57,20 @@ ADAPTER_ERROR_NAME = "adapter_error.txt"
 _POLL_MS = 300  # how often an interactive (console) process is checked
 
 
+def _input_id(value: "Artifact | ExternalFile") -> str:
+    """The lineage id of one chosen input."""
+    if isinstance(value, Artifact):
+        return value.artifact_id
+    return str(value.path)  # absolute path (amendment A1)
+
+
+def _input_path(value: "Artifact | ExternalFile") -> str:
+    """The absolute file the engine should read."""
+    if isinstance(value, Artifact):
+        return str(value.paths[0])
+    return str(value.path)
+
+
 @dataclass
 class JobRequest:
     """Everything needed to start one run. Built by the engine panel."""
@@ -62,27 +78,34 @@ class JobRequest:
     engine: Engine
     action: Action
     params: dict[str, Any] = field(default_factory=dict)
-    #: input key -> Artifact, or list[Artifact] for a ``multiple`` input.
+    #: input key -> Artifact | ExternalFile, or a list of either for a
+    #: ``multiple`` input (the two may be mixed).
     inputs: dict[str, Any] = field(default_factory=dict)
 
     def input_ids(self) -> dict[str, Any]:
-        """Artifact ids per input key, as recorded in the run manifest."""
+        """Input ids per key, as recorded in the run manifest.
+
+        An artifact contributes its artifact_id; a file browsed from disk
+        (amendment A1) contributes its absolute path, which resolves to no
+        artifact and so shows up as an unresolved - but visible - lineage
+        source.
+        """
         out: dict[str, Any] = {}
         for key, value in self.inputs.items():
-            if isinstance(value, Artifact):
-                out[key] = value.artifact_id
+            if isinstance(value, (Artifact, ExternalFile)):
+                out[key] = _input_id(value)
             elif value:
-                out[key] = [item.artifact_id for item in value]
+                out[key] = [_input_id(item) for item in value]
         return out
 
     def input_paths(self) -> dict[str, Any]:
-        """First file of each chosen artifact, absolute, for the command."""
+        """Absolute file path per input key, for the engine command."""
         out: dict[str, Any] = {}
         for key, value in self.inputs.items():
-            if isinstance(value, Artifact):
-                out[key] = str(value.paths[0])
+            if isinstance(value, (Artifact, ExternalFile)):
+                out[key] = _input_path(value)
             elif value:
-                out[key] = [str(item.paths[0]) for item in value]
+                out[key] = [_input_path(item) for item in value]
         return out
 
 

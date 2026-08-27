@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QSplitter, QWidget
 
 from rockslope_studio.core import Project, discover_engines, scan_project
 
+from . import settings
 from .artifact_tree import ArtifactTree
 from .engine_panel import EnginePanel
 from .job_panel import JobPanel
@@ -53,6 +54,11 @@ class MainWindow(QMainWindow):
         # wiring
         self.tree.refresh_requested.connect(self.refresh_artifacts)
         self.engine_panel.run_requested.connect(self._on_run_requested)
+        # amendment A1: the file dialog reopens where it was last used, per project
+        self.engine_panel.set_last_browse_dir(
+            settings.last_browse_dir(project.workspace_path)
+        )
+        self.engine_panel.browsed_dir_changed.connect(self._on_browsed_dir_changed)
         self.job_panel.cancel_requested.connect(self.runner.cancel_current)
         self.runner.job_log.connect(self.job_panel.append_log)
         self.runner.job_started.connect(self._on_job_started)
@@ -88,6 +94,9 @@ class MainWindow(QMainWindow):
         self.engine_panel.set_artifacts(artifacts)
 
     # ------------------------------------------------------------------ #
+
+    def _on_browsed_dir_changed(self, folder) -> None:
+        settings.set_last_browse_dir(self.project.workspace_path, folder)
 
     def _on_run_requested(self, request: JobRequest) -> None:
         self.runner.submit(request)

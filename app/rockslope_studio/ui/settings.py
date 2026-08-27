@@ -2,11 +2,13 @@
 
 On Windows this lands in the registry under
 ``HKCU\\Software\\MohammadNiknezhad\\rockslope-studio``.
-Stored here: the recent-projects list and the CloudCompare.exe path.
+Stored here: the recent-projects list, the last browsed folder per project
+(amendment A1), and the CloudCompare.exe path.
 """
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
@@ -16,6 +18,7 @@ _APP = "rockslope-studio"
 
 _RECENT_KEY = "projects/recent"
 _CLOUDCOMPARE_KEY = "tools/cloudcompare_path"
+_BROWSE_DIR_KEY = "projects/browse_dir"
 
 MAX_RECENT = 8
 
@@ -49,6 +52,36 @@ def remember_project(project_file: Path) -> None:
         if existing != project_file and len(entries) < MAX_RECENT:
             entries.append(str(existing))
     _store().setValue(_RECENT_KEY, entries)
+
+
+# --------------------------------------------------------------------------- #
+# Last browsed folder, per project (amendment A1)
+# --------------------------------------------------------------------------- #
+
+
+def _project_key(workspace: str | Path) -> str:
+    """A QSettings-safe key for one project's workspace path.
+
+    '/' would create nested groups and a bare Windows path contains both
+    separators and a colon, so the path is hashed. Collisions are irrelevant
+    here - the worst case is that a file dialog opens in the wrong folder.
+    """
+    resolved = str(Path(workspace).resolve()).lower()
+    return hashlib.sha1(resolved.encode("utf-8")).hexdigest()[:16]
+
+
+def last_browse_dir(workspace: str | Path) -> Path | None:
+    """The folder this project's last file dialog was used in, if it still exists."""
+    raw = _store().value("{0}/{1}".format(_BROWSE_DIR_KEY, _project_key(workspace)), "")
+    if raw and Path(str(raw)).is_dir():
+        return Path(str(raw))
+    return None
+
+
+def set_last_browse_dir(workspace: str | Path, folder: str | Path) -> None:
+    _store().setValue(
+        "{0}/{1}".format(_BROWSE_DIR_KEY, _project_key(workspace)), str(folder)
+    )
 
 
 # --------------------------------------------------------------------------- #

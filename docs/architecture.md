@@ -227,3 +227,33 @@ When you approve this document (with any changes you want):
 - Session 1 (scaffold) becomes ready for you to run in Claude Code.
 - Code is then written **only** inside those sessions, one module at a time, under the CLAUDE.md rules above.
 - Any change to the logic of your existing pipelines will still be proposed to you explicitly, every single time.
+
+## 16. Amendment A1 (2026-08-27) — input slots accept files from disk
+
+**Problem found in use.** Input pickers offered only artifacts already in the
+project, so the first run of a new project had nothing to pick: with an empty
+project the reference/align combos of ricp are empty and Run reports "Choose an
+artifact for input 'reference' first" — a dead end either way (corrected
+2026-08-27: the button is enabled, the message appears on click).
+The geohazard `in_file` parameter was a per-engine workaround; typing full
+paths into a text box is not the interface Mohammad wants.
+
+**Decision (Mohammad, 2026-08-27).** Every input slot gets a file chooser.
+The picker offers, in one control: the project's compatible artifacts **and**
+a "Browse..." button opening a normal Windows file dialog. A browsed file is
+used by absolute path, exactly like an artifact's file.
+
+**Rules.**
+
+* The file dialog filters by the slot's artifact type (pointcloud →
+  `*.las *.laz *.txt *.xyz *.csv *.pts *.asc`, transform → `*.json *.txt`,
+  table → `*.csv`, ...) with an "All files" fallback; the last folder used is
+  remembered per project.
+* Raw files are **never copied or modified**. The run manifest and the output
+  artifacts' provenance record an external input as its absolute path (an
+  input id that resolves to no artifact — `artifacts.parents_of` already
+  returns such ids as unresolved, by design), so lineage still shows where a
+  result came from.
+* Engine manifests and adapters are unaffected: they receive a file path per
+  input key, whatever its origin. Per-engine raw-path parameters (geohazard's
+  `in_file`) stay valid but stop being the normal route.
