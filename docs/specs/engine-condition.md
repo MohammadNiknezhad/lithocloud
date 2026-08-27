@@ -35,12 +35,22 @@ folder, log capture, and artifact registration only.
 currently choose their own input/output paths (CONFIG dict / prompts), so v1
 registration scans the folders they report at exit.
 
-## Proposals requiring Mohammad's explicit approval (NOT in this session unless he says yes)
+## P1 / P2 — DECLINED by Mohammad (2026-08-27)
 
-- **P1:** `Intensity_correction` accepts `--config path.json` overriding the
-  in-file CONFIG (tiny argv shim; algorithm untouched) — makes the auto-form work.
-- **P2:** `Gmm` accepts pre-answered prompts from a file (batch replay of an
-  interactive session) — makes reruns reproducible from the UI.
+Both shims were offered and **not** approved. Wrap the scripts exactly as they
+are: no `--config` override for the intensity correction, no pre-answered
+prompts for the GMM. Consequences to accept and document in the manifest:
+
+- both actions are `interactive: true` and run in their own console window;
+- the intensity correction is configured by editing its in-file `CONFIG` dict
+  (the studio does not send parameters); the params file for that action
+  therefore stays empty or absent;
+- the GMM action is driven entirely by its console prompts, as today;
+- reruns are reproducible only through the run record (the scripts' own
+  `run_config` output), not by replaying the form.
+
+Do not add argv shims, config overrides, or prompt replay unless Mohammad
+asks for them in a later session.
 
 ## Open questions for Mohammad (ask at session start)
 
