@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "out_name",
+      "label": "Output file name",
+      "type": "str",
+      "default": "export.txt",
+      "help": "Adapter setting: name of the text file written inside the run folder."
+    },
+    {
+      "key": "delimiter",
+      "label": "Delimiter",
+      "type": "str",
+      "default": " ",
+      "help": "' ' , ; or tab (default space)."
+    },
+    {
+      "key": "precision",
+      "label": "XYZ decimals",
+      "type": "int",
+      "default": 4,
+      "min": 0,
+      "help": "Decimals for X Y Z (default 4)."
+    },
+    {
+      "key": "columns",
+      "label": "Columns",
+      "type": "str",
+      "default": "",
+      "help": "Subset/order of columns, space-separated (default all)."
+    },
+    {
+      "key": "header",
+      "label": "Header style",
+      "type": "choice",
+      "default": "plain",
+      "choices": ["plain", "cc", "none"],
+      "help": "plain 'X Y Z', cc '//X Y Z', none."
+    },
+    {
+      "key": "rgb",
+      "label": "RGB",
+      "type": "choice",
+      "default": "16bit",
+      "choices": ["16bit", "8bit", "unit"],
+      "help": "RGB value range in the text output."
+    },
+    {
+      "key": "decode_intensity",
+      "label": "Decode intensity",
+      "type": "bool",
+      "default": false,
+      "help": "Undo the ingest intensity encoding using the manifest."
+    },
+    {
+      "key": "keep_zero_fields",
+      "label": "Keep zero fields",
+      "type": "bool",
+      "default": false,
+      "help": "Also write standard fields that are all zero."
+    },
+    {
+      "key": "chunk_size",
+      "label": "Chunk size (points)",
+      "type": "int",
+      "default": 2000000,
+      "min": 1,
+      "help": "Advanced: points per chunk (memory knob)."
+    }
+  ]
+}

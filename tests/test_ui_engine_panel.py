@@ -19,8 +19,8 @@ def fake_artifact(artifact_id: str, type_: str) -> Artifact:
 def panel(qtbot, repo_root: Path) -> EnginePanel:
     widget = EnginePanel()
     qtbot.addWidget(widget)
-    engines = find_engines(repo_root, include_private=True)
-    assert [e.id for e in engines] == ["demo"], "expected only _demo at this stage"
+    engines = [e for e in find_engines(repo_root, include_private=True) if e.id == "demo"]
+    assert [e.id for e in engines] == ["demo"], "the _demo engine must exist"
     widget.set_engines(engines)
     return widget
 

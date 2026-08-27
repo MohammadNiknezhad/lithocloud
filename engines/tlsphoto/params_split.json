@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "support_radius",
+      "label": "Support radius (m)",
+      "type": "float",
+      "default": 0.12,
+      "help": "Raw-TLS support radius (m) for the status-1 spatial bins."
+    }
+  ]
+}

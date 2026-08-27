@@ -1,0 +1,120 @@
+# tlsphoto adapter (session 3). The pipeline code lives read-only in
+# ../../../tlsphoto (its own repo); this folder holds ONLY this manifest, the
+# params files, and adapter.py - a thin wrapper that invokes the tlsphoto CLI
+# and then writes the outputs.json the shell registers artifacts from.
+# Zero changes inside ../tlsphoto. The launcher (launcher.py +
+# launcher_settings.py) remains Mohammad's manual workflow and is never touched.
+id: tlsphoto
+name: tlsphoto (TLS + photogrammetry)
+version: 0.5.6   # tracks tlsphoto.__version__ - bump when the sibling repo does
+description: >
+  Ingest ASCII/LAS/LAZ into canonical LAZ, register the TLS block onto the
+  photogrammetry, fuse both on one voxel grid, and compare fuse runs.
+  Wrapped as-is per architecture section 6 - no restructuring.
+
+actions:
+  - id: ingest
+    label: Ingest raw files to canonical LAZ
+    description: >
+      Raw input paths are typed into the 'in_files' parameter (separated by ;)
+      because raw files are not artifacts. Writes one canonical .laz + its
+      JSON manifest.
+    interactive: false
+    inputs: []
+    outputs:
+      - {key: canonical, type: pointcloud}
+    params: params_ingest.json
+
+  - id: register
+    label: Register TLS onto photogrammetry (rigid 6-DOF)
+    description: >
+      Coarse alignment from picked pairs / identity / auto / topview, then
+      multi-level ICP. Not interactive - picked points come from CloudCompare
+      export files given in the parameters.
+    interactive: false
+    inputs:
+      - {key: tls, type: pointcloud}
+      - {key: photo, type: pointcloud}
+    outputs:
+      - {key: registered, type: pointcloud}
+      - {key: transform, type: transform}
+      - {key: report, type: report}
+    params: params_register.json
+
+  - id: fuse
+    label: Fuse registered TLS + photo (layered)
+    interactive: false
+    inputs:
+      - {key: tls, type: pointcloud}
+      - {key: photo, type: pointcloud}
+    outputs:
+      - {key: tls_colored, type: pointcloud}
+      - {key: photo_surface_consistent, type: pointcloud}
+      - {key: photo_outside_tls_support, type: pointcloud}
+      - {key: photo_ambiguous, type: pointcloud}
+      - {key: report, type: report}
+    params: params_fuse.json
+
+  - id: compare
+    label: Compare two fuse runs (status transitions)
+    description: >
+      Pick ONE pointcloud artifact from each fuse run; the adapter passes that
+      artifact's folder to the CLI as the run folder.
+    interactive: false
+    inputs:
+      - {key: old, type: pointcloud}
+      - {key: new, type: pointcloud}
+    outputs:
+      - {key: report, type: report}
+      - {key: transitions, type: pointcloud}
+    params: params_compare.json
+
+  - id: split
+    label: Split a legacy fuse run into layered outputs
+    description: >
+      Pick a pointcloud artifact from the legacy fuse run; its folder is passed
+      as --fuse-dir.
+    interactive: false
+    inputs:
+      - {key: fusedir, type: pointcloud}
+    outputs:
+      - {key: tls_colored, type: pointcloud}
+      - {key: photo_surface_consistent, type: pointcloud}
+      - {key: photo_outside_tls_support, type: pointcloud}
+      - {key: photo_ambiguous, type: pointcloud}
+      - {key: report, type: report}
+    params: params_split.json
+
+  - id: export
+    label: Export a LAS/LAZ to delimited text
+    interactive: false
+    inputs:
+      - {key: cloud, type: pointcloud}
+    outputs:
+      - {key: table, type: table}
+    params: params_export.json
+
+  - id: info
+    label: Show header, dimensions and manifest summary
+    interactive: false
+    inputs:
+      - {key: cloud, type: pointcloud}
+    outputs:
+      - {key: report, type: report}
+    params: params_info.json
+
+run:
+  # The adapter receives the artifact paths the shell picked; input keys the
+  # current action does not declare render empty (core rule, 2026-08-27) and
+  # the adapter treats empty as absent.
+  command: >-
+    {python} adapter.py {action}
+    --params {params_file}
+    --out {run_dir}
+    --tls={input:tls}
+    --photo={input:photo}
+    --cloud={input:cloud}
+    --old={input:old}
+    --new={input:new}
+    --fuse-src={input:fusedir}
+  cwd: .

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "chunk_size",
+      "label": "Chunk size (points)",
+      "type": "int",
+      "default": 2000000,
+      "min": 1,
+      "help": "Advanced: points per chunk (memory knob)."
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "pairs_tls",
+      "label": "Picked pairs: TLS file",
+      "type": "str",
+      "default": "",
+      "help": "Coarse alignment (choose one method). Full path to the TLS picked-points file (CloudCompare point list picking export, GLOBAL coordinates). Give both pair files or neither."
+    },
+    {
+      "key": "pairs_photo",
+      "label": "Picked pairs: photo file",
+      "type": "str",
+      "default": "",
+      "help": "Full path to the photo picked-points file, same point order as the TLS file."
+    },
+    {
+      "key": "holdout",
+      "label": "Holdout pairs",
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "help": "Hold out the LAST k pairs as check points."
+    },
+    {
+      "key": "check_tls",
+      "label": "Check points: TLS file",
+      "type": "str",
+      "default": "",
+      "help": "Separate check-point files (used only for validation). Give both or neither."
+    },
+    {
+      "key": "check_photo",
+      "label": "Check points: photo file",
+      "type": "str",
+      "default": "",
+      "help": "Photo half of the separate check points."
+    },
+    {
+      "key": "init",
+      "label": "Init (identity | matrix file)",
+      "type": "str",
+      "default": "",
+      "help": "Start from 'identity' (clouds already roughly aligned) or a 4x4 matrix file path. Empty = not passed."
+    },
+    {
+      "key": "shift_tls",
+      "label": "Global shift TLS (X Y Z)",
+      "type": "str",
+      "default": "",
+      "help": "CloudCompare 'Global shift' of the TLS cloud, three numbers space-separated, if the init matrix comes from CloudCompare and the clouds were shifted."
+    },
+    {
+      "key": "shift_photo",
+      "label": "Global shift photo (X Y Z)",
+      "type": "str",
+      "default": "",
+      "help": "CloudCompare 'Global shift' of the photo cloud (same purpose)."
+    },
+    {
+      "key": "auto",
+      "label": "Auto coarse (FPFH+RANSAC)",
+      "type": "bool",
+      "default": false,
+      "help": "FPFH+RANSAC automatic coarse alignment (needs open3d)."
+    },
+    {
+      "key": "topview",
+      "label": "Topview coarse",
+      "type": "bool",
+      "default": false,
+      "help": "Gravity-aware top-view automatic coarse alignment (v0.5, no pairs needed)."
+    },
+    {
+      "key": "auto_voxel",
+      "label": "Auto voxel (m)",
+      "type": "float",
+      "default": 0.5,
+      "help": "Voxel for the automatic coarse alignment."
+    },
+    {
+      "key": "topview_cell",
+      "label": "Top-view cell (m)",
+      "type": "float",
+      "default": 0.25,
+      "help": "Top-view raster cell (m)."
+    },
+    {
+      "key": "yaw_hint",
+      "label": "Yaw hint (DEG HALFWIN)",
+      "type": "str",
+      "default": "",
+      "help": "Optional yaw prior for topview, two numbers, e.g. '40 30' searches 10..70 deg."
+    },
+    {
+      "key": "sample_voxel",
+      "label": "Working-sample voxel (m)",
+      "type": "float",
+      "default": 0.05,
+      "help": "Working-sample voxel (m), default 0.05."
+    },
+    {
+      "key": "max_sample",
+      "label": "Max sample points",
+      "type": "int",
+      "default": 8000000,
+      "min": 1,
+      "help": "Cap on working-sample points (memory)."
+    },
+    {
+      "key": "max_points",
+      "label": "Max points per ICP level",
+      "type": "int",
+      "default": 2000000,
+      "min": 1,
+      "help": "Points per ICP level."
+    },
+    {
+      "key": "coarse_voxel",
+      "label": "First ICP level voxel (m)",
+      "type": "float",
+      "default": 0.5,
+      "help": "First ICP level voxel (m)."
+    },
+    {
+      "key": "levels",
+      "label": "Explicit ICP levels",
+      "type": "str",
+      "default": "",
+      "help": "Explicit ICP voxel levels, space-separated, e.g. '0.5 0.2 0.1 0.05'. Empty = automatic."
+    },
+    {
+      "key": "corr_factor",
+      "label": "Correspondence factor",
+      "type": "float",
+      "default": 3.0,
+      "help": "Max correspondence distance = factor x voxel."
+    },
+    {
+      "key": "qa_threshold",
+      "label": "QA threshold (m)",
+      "type": "float",
+      "default": 0.1,
+      "help": "Distance threshold for fitness / QA (m)."
+    },
+    {
+      "key": "no_icp",
+      "label": "Skip ICP",
+      "type": "bool",
+      "default": false,
+      "help": "Only coarse alignment + QA."
+    },
+    {
+      "key": "no_apply",
+      "label": "Do not write registered TLS",
+      "type": "bool",
+      "default": false,
+      "help": "Do not write the registered full TLS (the 'registered' artifact will then be absent - a warning, not an error)."
+    },
+    {
+      "key": "chunk_size",
+      "label": "Chunk size (points)",
+      "type": "int",
+      "default": 2000000,
+      "min": 1,
+      "help": "Advanced: points per chunk (memory knob)."
+    },
+    {
+      "key": "workers",
+      "label": "Workers",
+      "type": "int",
+      "default": -1,
+      "help": "Threads for neighbour searches (-1 = all)."
+    }
+  ]
+}

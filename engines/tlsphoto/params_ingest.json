@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "in_files",
+      "label": "Input file(s)",
+      "type": "str",
+      "default": "",
+      "help": "REQUIRED. Full path(s) to the raw file(s), separated by ; - e.g. D:\\raw\\scan1.pts;D:\\raw\\scan2.pts. Accepts .txt .csv .xyz .pts .asc .las .laz and * wildcards. TLS: one file per scan if possible."
+    },
+    {
+      "key": "role",
+      "label": "Role",
+      "type": "choice",
+      "default": "tls",
+      "choices": ["tls", "photo"],
+      "help": "REQUIRED by the CLI (no default there): tls scan block or photogrammetry cloud."
+    },
+    {
+      "key": "out_name",
+      "label": "Output file name",
+      "type": "str",
+      "default": "canonical.laz",
+      "help": "Adapter setting: name of the canonical .laz (or .las) written inside the run folder."
+    },
+    {
+      "key": "columns",
+      "label": "Columns (headerless text)",
+      "type": "str",
+      "default": "",
+      "help": "Column names in file order for HEADERLESS text files, space-separated, e.g. X Y Z Intensity R G B (use 'skip' to drop a column). Empty = not passed."
+    },
+    {
+      "key": "map",
+      "label": "Rename columns (OLD=NEW)",
+      "type": "str",
+      "default": "",
+      "help": "Rename header columns to canonical names, space-separated pairs, e.g. Reflectance=Intensity Sf1=skip."
+    },
+    {
+      "key": "scanners",
+      "label": "Scanner positions CSV",
+      "type": "str",
+      "default": "",
+      "help": "Full path to the TLS scanner positions table: columns name|id, x, y, z (same frame as the TLS)."
+    },
+    {
+      "key": "scan_ids",
+      "label": "Scan IDs",
+      "type": "str",
+      "default": "",
+      "help": "Explicit ScanID per input file, space-separated integers (default 1..N in input order)."
+    },
+    {
+      "key": "scanid_offset",
+      "label": "ScanID offset",
+      "type": "int",
+      "default": 0,
+      "help": "Added to a ScanID column, e.g. 1 for CloudCompare's 0-based 'Original cloud index'."
+    },
+    {
+      "key": "chunk_size",
+      "label": "Chunk size (points)",
+      "type": "int",
+      "default": 2000000,
+      "min": 1,
+      "help": "Advanced: points per chunk (memory knob)."
+    },
+    {
+      "key": "scale",
+      "label": "LAS scale (m)",
+      "type": "float",
+      "default": 0.001,
+      "help": "LAS coordinate resolution in m (default 1 mm)."
+    },
+    {
+      "key": "crs",
+      "label": "CRS",
+      "type": "str",
+      "default": "",
+      "help": "CRS to stamp on the output, e.g. EPSG:2950 (needs pyproj). Empty = not passed."
+    },
+    {
+      "key": "units",
+      "label": "Units",
+      "type": "str",
+      "default": "",
+      "help": "Coordinate unit when no CRS states it; only 'm' accepted. Empty = not passed."
+    },
+    {
+      "key": "extra_dtype",
+      "label": "Extra-column dtype",
+      "type": "choice",
+      "default": "float32",
+      "choices": ["float32", "float64"],
+      "help": "Storage type for unrecognised extra columns."
+    },
+    {
+      "key": "drop_unknown",
+      "label": "Drop unknown columns",
+      "type": "bool",
+      "default": false,
+      "help": "Drop unrecognised columns instead of keeping them."
+    },
+    {
+      "key": "no_raw_intensity",
+      "label": "No raw intensity",
+      "type": "bool",
+      "default": false,
+      "help": "Do not keep IntensityRaw when the intensity mapping to uint16 is lossy."
+    },
+    {
+      "key": "rgb_encoding",
+      "label": "RGB encoding",
+      "type": "choice",
+      "default": "auto",
+      "choices": ["auto", "unit", "8bit", "16bit"],
+      "help": "Force RGB interpretation. 'auto' = flag not passed (CLI decides)."
+    },
+    {
+      "key": "intensity_encoding",
+      "label": "Intensity encoding",
+      "type": "choice",
+      "default": "auto",
+      "choices": ["auto", "raw", "unit", "pts", "linear"],
+      "help": "Force intensity interpretation. 'auto' = flag not passed (CLI decides)."
+    },
+    {
+      "key": "dry_run",
+      "label": "Dry run",
+      "type": "bool",
+      "default": false,
+      "help": "Parse everything and report, write nothing (no canonical artifact is registered)."
+    }
+  ]
+}

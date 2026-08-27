@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "cell",
+      "label": "Voxel size (m)",
+      "type": "float",
+      "default": 0.02,
+      "help": "Voxel size in m (default 2 cm)."
+    },
+    {
+      "key": "mode",
+      "label": "Mode",
+      "type": "choice",
+      "default": "uniform",
+      "choices": ["uniform", "max_tls"],
+      "help": "uniform: one point per voxel; max_tls: keep every TLS point. Mohammad's calibrated value: max_tls."
+    },
+    {
+      "key": "tolerance",
+      "label": "Surface tolerance (m)",
+      "type": "str",
+      "default": "",
+      "help": "Surface tolerance in m. Empty = CLI default (taken from the registration QA). Mohammad's calibrated value: 0.05."
+    },
+    {
+      "key": "support_radius",
+      "label": "Support radius (m)",
+      "type": "float",
+      "default": 0.12,
+      "help": "Raw-TLS support radius (m)."
+    },
+    {
+      "key": "surface_radius",
+      "label": "Surface radius (m)",
+      "type": "float",
+      "default": 0.12,
+      "help": "Reliability/plane radius (m)."
+    },
+    {
+      "key": "rep_nmin",
+      "label": "Min plane points",
+      "type": "int",
+      "default": 8,
+      "min": 1,
+      "help": "Minimum points for the reliability plane fit."
+    },
+    {
+      "key": "q_max",
+      "label": "Q max",
+      "type": "float",
+      "default": 0.1,
+      "help": "Plane RMSE / surface radius. Mohammad's calibrated value: 0.20."
+    },
+    {
+      "key": "products",
+      "label": "Products",
+      "type": "choice",
+      "default": "layers",
+      "choices": ["layers", "conservative", "extended", "both"],
+      "help": "Layered outputs (default) plus optional merged convenience files."
+    },
+    {
+      "key": "axial_max_deg",
+      "label": "Axial max (deg)",
+      "type": "float",
+      "default": 30.0,
+      "help": "Reliability: P90 axial normal deviation gate (degrees, sign-safe). Mohammad's calibrated value: 50.0."
+    },
+    {
+      "key": "rgb_dist",
+      "label": "RGB transfer distance (m)",
+      "type": "float",
+      "default": 0.15,
+      "help": "Max RGB transfer distance (m)."
+    },
+    {
+      "key": "no_clean_photo",
+      "label": "Keep isolated photo points",
+      "type": "bool",
+      "default": false,
+      "help": "Keep isolated photo points instead of diverting them to photo_rejected.laz."
+    },
+    {
+      "key": "confidence_field",
+      "label": "Confidence field",
+      "type": "str",
+      "default": "",
+      "help": "Photo dimension holding confidence (explicit, never assumed). Empty = not passed."
+    },
+    {
+      "key": "confidence_min",
+      "label": "Confidence min",
+      "type": "str",
+      "default": "",
+      "help": "Minimum confidence value (number). Empty = not passed."
+    },
+    {
+      "key": "include_ambiguous",
+      "label": "Include ambiguous",
+      "type": "bool",
+      "default": false,
+      "help": "Put AMBIGUOUS points into fused.laz instead of a separate file."
+    },
+    {
+      "key": "chunk_size",
+      "label": "Chunk size (points)",
+      "type": "int",
+      "default": 2000000,
+      "min": 1,
+      "help": "Advanced: points per chunk (memory knob)."
+    },
+    {
+      "key": "workers",
+      "label": "Workers",
+      "type": "int",
+      "default": -1,
+      "help": "Threads for neighbour searches (-1 = all)."
+    }
+  ]
+}
