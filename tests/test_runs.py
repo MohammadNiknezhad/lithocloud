@@ -303,6 +303,35 @@ def test_is_done_on_a_missing_folder(tmp_path: Path) -> None:
     assert is_done(tmp_path / "nope") is False
 
 
+def test_a_cancelled_run_is_recorded_as_cancelled(tmp_path: Path) -> None:
+    run_dir = create_run_dir(tmp_path, "e", "a", when=WHEN)
+    write_run_manifest(run_dir, engine="e", engine_version="1", action="a")
+
+    assert finish_run(run_dir, 1, cancelled=True) is None
+
+    data = read_run_manifest(run_dir)
+    assert data["cancelled"] is True
+    assert data["exit_code"] == 1
+    assert not is_done(run_dir)
+
+
+def test_a_cancelled_run_never_gets_done_even_with_exit_zero(tmp_path: Path) -> None:
+    """Whatever exit code the kill produced, cancelled means not completed."""
+    run_dir = create_run_dir(tmp_path, "e", "a", when=WHEN)
+    write_run_manifest(run_dir, engine="e", engine_version="1", action="a")
+
+    assert finish_run(run_dir, 0, cancelled=True) is None
+    assert not is_done(run_dir)
+
+
+def test_a_normal_run_is_not_marked_cancelled(tmp_path: Path) -> None:
+    run_dir = create_run_dir(tmp_path, "e", "a", when=WHEN)
+    write_run_manifest(run_dir, engine="e", engine_version="1", action="a")
+    finish_run(run_dir, 0)
+
+    assert "cancelled" not in read_run_manifest(run_dir)
+
+
 def test_finish_run_message(tmp_path: Path) -> None:
     run_dir = create_run_dir(tmp_path, "e", "a", when=WHEN)
     finish_run(run_dir, 0, message="all good")
@@ -332,17 +361,27 @@ def test_list_runs_reports_status(tmp_path: Path) -> None:
     live = create_run_dir(tmp_path, "e", "live", when=WHEN)
     write_run_manifest(live, engine="e", engine_version="1", action="live")
 
+    stopped = create_run_dir(tmp_path, "e", "stopped", when=WHEN)
+    write_run_manifest(stopped, engine="e", engine_version="1", action="stopped")
+    finish_run(stopped, 1, cancelled=True)
+
     records = {r.action: r for r in list_runs(tmp_path)}
 
     assert records["good"].succeeded is True
     assert records["good"].exit_code == 0
+    assert records["good"].cancelled is False
 
     assert records["bad"].succeeded is False
     assert records["bad"].exit_code == 2
     assert records["bad"].running is False
+    assert records["bad"].cancelled is False
 
     assert records["live"].running is True
     assert records["live"].succeeded is False
+
+    assert records["stopped"].cancelled is True
+    assert records["stopped"].succeeded is False
+    assert records["stopped"].running is False
 
 
 def test_list_runs_still_reports_a_folder_with_no_manifest(tmp_path: Path) -> None:

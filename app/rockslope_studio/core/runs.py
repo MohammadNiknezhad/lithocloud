@@ -206,12 +206,18 @@ def finish_run(
     finished: str | None = None,
     outputs: Iterable[str] | None = None,
     message: str = "",
+    cancelled: bool = False,
 ) -> Path | None:
     """Record the end of a run.
 
     Updates ``exit_code`` and ``finished`` in ``manifest.json`` and, **only for
     ``exit_code == 0``**, writes ``_DONE.json``. Returns the path of the
     ``_DONE.json`` that was written, or ``None`` for a failed run.
+
+    *cancelled* marks a run the user stopped on purpose: ``"cancelled": true``
+    is recorded in the manifest so the job history can say CANCELLED instead of
+    FAILED. A cancelled run never gets a ``_DONE.json``, whatever exit code the
+    kill produced.
     """
     run_dir = Path(run_dir)
     stamp = finished or utc_now_iso()
@@ -222,11 +228,13 @@ def finish_run(
         manifest = {}
     manifest["exit_code"] = int(exit_code)
     manifest["finished"] = stamp
+    if cancelled:
+        manifest["cancelled"] = True
     if outputs is not None:
         manifest["outputs"] = [str(item) for item in outputs]
     atomic_write_json(run_dir / MANIFEST_NAME, manifest)
 
-    if exit_code != 0:
+    if exit_code != 0 or cancelled:
         return None
 
     done: dict[str, Any] = {
@@ -266,6 +274,7 @@ class RunRecord:
     finished: str | None = None
     exit_code: int | None = None
     done: bool = False
+    cancelled: bool = False
     problem: str = ""
 
     @property
@@ -275,7 +284,7 @@ class RunRecord:
     @property
     def running(self) -> bool:
         """No exit code yet and no ``_DONE.json`` - in flight, or interrupted."""
-        return self.exit_code is None and not self.done
+        return self.exit_code is None and not self.done and not self.cancelled
 
 
 def list_runs(workspace: PathLike) -> list[RunRecord]:
@@ -313,6 +322,7 @@ def list_runs(workspace: PathLike) -> list[RunRecord]:
                 finished=data.get("finished"),
                 exit_code=data.get("exit_code"),
                 done=done,
+                cancelled=bool(data.get("cancelled", False)),
             )
         )
     return records

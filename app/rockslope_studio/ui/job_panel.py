@@ -117,6 +117,8 @@ class JobPanel(QWidget):
     def _history_item(record: RunRecord) -> QTreeWidgetItem:
         if record.succeeded:
             status = "OK"
+        elif record.cancelled:
+            status = "CANCELLED"
         elif record.running:
             status = "running / interrupted"
         else:

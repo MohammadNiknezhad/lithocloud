@@ -330,6 +330,13 @@ def test_cancel_kills_the_run_and_leaves_a_failed_record(
     assert not is_done(job.run_dir)
     assert scan_project(tmp_path) == []
 
+    # the run record says CANCELLED, not failed
+    manifest = json.loads((job.run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["cancelled"] is True
+    record = list_runs(tmp_path)[0]
+    assert record.cancelled is True
+    assert record.succeeded is False
+
 
 def test_cancel_lets_the_next_queued_job_run(
     qtbot, tmp_path: Path, demo_engine, demo_defaults

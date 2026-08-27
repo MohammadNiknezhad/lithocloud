@@ -328,7 +328,9 @@ class JobRunner(QObject):
                 self.job_log.emit("WARNING: " + line)
 
         try:
-            finish_run(job.run_dir, exit_code, outputs=outputs_summary)
+            finish_run(
+                job.run_dir, exit_code, outputs=outputs_summary, cancelled=job.cancelled
+            )
         except Exception as exc:  # noqa: BLE001
             self.job_log.emit("ERROR: could not record run end - {0}".format(exc))
             ok = False
