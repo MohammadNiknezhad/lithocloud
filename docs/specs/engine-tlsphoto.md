@@ -11,7 +11,7 @@
 | `ingest` | `ingest --role tls\|photo` | raw file(s) (user-picked path or `pointcloud`) | `pointcloud` (canonical .laz) + manifest | no |
 | `register` | `register` | tls `pointcloud`, photo `pointcloud` | `pointcloud` (registered) + `transform` + `report` | possibly (verify) |
 | `fuse` | `fuse` | registered tls + photo `pointcloud` | `pointcloud` (fused, layered) + `report` | no |
-| `compare` | `compare --old --new` | two fuse-run folders | `table` + `report` | no |
+| `compare` | `compare --old --new` | two fuse-run folders (picked via a `pointcloud` artifact from each run; the adapter passes its folder) | `report` (compare_report.txt — the transition table is its text) + `pointcloud` transition clouds (registered when present) | no |
 | `export` | `export` | `pointcloud` | text file (`table`) | no |
 | `split` | `split --fuse-dir` | legacy fuse run | layered `pointcloud`s | no |
 | `info` | `info` | `pointcloud` | `report` (stdout capture) | no |
