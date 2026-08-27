@@ -1,0 +1,68 @@
+# geohazard adapter (session 4). The pipeline code lives read-only in
+# ../../../geohazard-pipeline (its own repo); this folder holds ONLY this
+# manifest, the params files, and adapter.py. Zero changes inside the sibling.
+#
+# Wiring decided 2026-08-27: the adapter passes --runs-dir = THE STUDIO RUN
+# FOLDER, so geohazard's native <stamp>/ run folder (with its own
+# manifest.json, stage subfolders and _DONE.json checkpoints) is created
+# NESTED inside the studio's run folder. One job = one entry in the job
+# history; artifacts register from the nested stage folders.
+id: geohazard
+name: Geohazard (structure & hazard)
+version: 1.0.0   # the sibling package has no __version__ string; adapter version
+description: >
+  Staged rock-slope pipeline: ingest, orientation, facets, edges, stereonet,
+  hazard layers. Interactive by design (column mapping, north confirmation) -
+  runs attached to its own console window, exactly as today.
+
+actions:
+  - id: run
+    label: Run pipeline (up to a chosen stage)
+    description: >
+      Fresh run on a cloud. Pick a pointcloud artifact OR type a raw file path
+      into the 'in_file' parameter (exactly one of the two). Prompts appear in
+      the console window; 'batch mode' passes --yes (still hard-stops if north
+      cannot be verified).
+    interactive: true
+    inputs:
+      - {key: cloud, type: pointcloud, optional: true}
+    outputs:
+      - {key: facets, type: table}
+      - {key: joint_sets, type: table}
+      - {key: edges, type: table}
+      - {key: stereonet_figures, type: figure}
+      - {key: kinematics, type: table}
+      - {key: hazard_maps, type: map}
+      - {key: hazard_tables, type: table}
+      - {key: report, type: report}
+    params: params_run.json
+
+  - id: redo_stage
+    label: Redo a stage of a previous run
+    description: >
+      Pick the REPORT artifact of the previous geohazard run. The adapter
+      resumes from that run's native folder (checkpoints reused, nothing
+      overwritten) and recomputes the chosen stage and everything after it.
+      The original cloud path is re-read from that run's manifest.
+    interactive: true
+    inputs:
+      - {key: previous, type: report}
+    outputs:
+      - {key: facets, type: table}
+      - {key: joint_sets, type: table}
+      - {key: edges, type: table}
+      - {key: stereonet_figures, type: figure}
+      - {key: kinematics, type: table}
+      - {key: hazard_maps, type: map}
+      - {key: hazard_tables, type: table}
+      - {key: report, type: report}
+    params: params_redo.json
+
+run:
+  command: >-
+    {python} adapter.py {action}
+    --params {params_file}
+    --out {run_dir}
+    --cloud={input:cloud}
+    --previous={input:previous}
+  cwd: .

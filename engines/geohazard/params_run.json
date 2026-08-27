@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "in_file",
+      "label": "Raw cloud path (if no artifact picked)",
+      "type": "str",
+      "default": "",
+      "help": "Full path to a raw cloud (.txt/.csv/.las/.laz). Use this OR pick a pointcloud artifact above - exactly one of the two."
+    },
+    {
+      "key": "to_stage",
+      "label": "Run up to stage",
+      "type": "choice",
+      "default": "06_hazard",
+      "choices": ["01_ingest", "02_orientation", "03_facets", "04_edges", "05_stereonet", "06_hazard"],
+      "help": "Run up to and including this stage (CLI --to; default: the last stage)."
+    },
+    {
+      "key": "tag",
+      "label": "Run tag",
+      "type": "str",
+      "default": "",
+      "help": "Suffix for geohazard's native run folder name (CLI --tag). Empty = none."
+    },
+    {
+      "key": "batch_yes",
+      "label": "Batch mode (--yes)",
+      "type": "bool",
+      "default": false,
+      "help": "Accept proposed defaults (non-interactive where safe). Still HARD-STOPS if north cannot be verified."
+    },
+    {
+      "key": "random_seed",
+      "label": "Random seed",
+      "type": "int",
+      "default": 42,
+      "help": "PipelineConfig.random_seed."
+    },
+    {
+      "key": "facets_normal_radius_mult",
+      "label": "Facets: normal radius (x s)",
+      "type": "float",
+      "default": 5.0,
+      "help": "Normal estimation neighborhood radius, in multiples of spacing s."
+    },
+    {
+      "key": "facets_rg_angle_deg",
+      "label": "Facets: region-growing angle (deg)",
+      "type": "float",
+      "default": 12.0,
+      "help": "Max angle between neighbor normals."
+    },
+    {
+      "key": "facets_rg_knn",
+      "label": "Facets: kNN graph size",
+      "type": "int",
+      "default": 12,
+      "min": 1,
+      "help": "Neighbor graph size for region growing."
+    },
+    {
+      "key": "facets_rg_min_facet_points",
+      "label": "Facets: min facet points",
+      "type": "int",
+      "default": 30,
+      "min": 1,
+      "help": "Discard smaller facets."
+    },
+    {
+      "key": "facets_joint_set_max_k",
+      "label": "Facets: joint-set max k",
+      "type": "int",
+      "default": 8,
+      "min": 1,
+      "help": "BIC search upper bound for joint-set clustering."
+    },
+    {
+      "key": "facets_joint_set_fixed_k",
+      "label": "Facets: fixed joint-set count",
+      "type": "str",
+      "default": "",
+      "help": "Force an exact number of joint sets (skips BIC). Empty = let BIC choose. Use when the set count is known from field mapping."
+    },
+    {
+      "key": "facets_use_input_normals",
+      "label": "Facets: use input normals",
+      "type": "bool",
+      "default": false,
+      "help": "Use normals supplied in the input file (roles Nx, Ny, Nz) instead of computing them."
+    },
+    {
+      "key": "facets_flip_normals",
+      "label": "Facets: flip normals",
+      "type": "bool",
+      "default": false,
+      "help": "Force-invert all normals after automatic orientation. Sign is CRITICAL for convex/concave classification in S5."
+    },
+    {
+      "key": "edges_adjacency_tol_mult",
+      "label": "Edges: adjacency tolerance (x s)",
+      "type": "float",
+      "default": 2.5,
+      "help": "tau, multiples of s."
+    },
+    {
+      "key": "edges_min_internormal_angle_deg",
+      "label": "Edges: min inter-normal angle (deg)",
+      "type": "float",
+      "default": 12.0,
+      "help": "Reject near-parallel facet pairs."
+    },
+    {
+      "key": "edges_min_edge_length_mult",
+      "label": "Edges: min edge length (x s)",
+      "type": "float",
+      "default": 4.0,
+      "help": "Shorter contacts are degenerate."
+    },
+    {
+      "key": "sectors_mode",
+      "label": "Sectors: mode",
+      "type": "choice",
+      "default": "auto",
+      "choices": ["auto", "manual", "off"],
+      "help": "auto: breaks where face orientation drifts; manual: breaks from config; off: single sector (v16 behaviour)."
+    },
+    {
+      "key": "sectors_max_drift_deg",
+      "label": "Sectors: max drift (deg)",
+      "type": "float",
+      "default": 15.0,
+      "help": "New sector when the face drifts this far."
+    },
+    {
+      "key": "stereonet_display_friction_deg",
+      "label": "Stereonet: display friction (deg)",
+      "type": "float",
+      "default": 30.0,
+      "help": "Friction angle for the envelope DRAWN on the stereonet (S6 still sweeps the full range)."
+    },
+    {
+      "key": "stereonet_min_chain_length_m",
+      "label": "Stereonet: min chain length (m)",
+      "type": "float",
+      "default": 0.0,
+      "help": "0 = keep all chains."
+    },
+    {
+      "key": "stereonet_exclude_sets",
+      "label": "Stereonet: exclude sets",
+      "type": "str",
+      "default": "",
+      "help": "Joint sets to keep out of the kinematic tests (e.g. the excavated face), space-separated integers. Empty = ask at run time; -1 = exclude nothing."
+    },
+    {
+      "key": "stereonet_length_weighted",
+      "label": "Stereonet: length-weighted",
+      "type": "bool",
+      "default": true,
+      "help": "Weight each lineation by chain length (recommended)."
+    },
+    {
+      "key": "stereonet_dpi",
+      "label": "Stereonet: figure DPI",
+      "type": "int",
+      "default": 300,
+      "min": 50,
+      "help": "Figure output resolution."
+    },
+    {
+      "key": "hazard_grid_cell_m",
+      "label": "Hazard: grid cell (m)",
+      "type": "float",
+      "default": 2.0,
+      "help": "Grid cell size in metres (physical - hazard concerns real block scales)."
+    },
+    {
+      "key": "hazard_friction_sweep_deg",
+      "label": "Hazard: friction sweep (deg)",
+      "type": "str",
+      "default": "25 30 35 40",
+      "help": "Wedge layers are computed at every angle, space-separated."
+    },
+    {
+      "key": "hazard_toppling_phi_deg",
+      "label": "Hazard: toppling phi (deg)",
+      "type": "float",
+      "default": 30.0,
+      "help": "Toppling friction angle."
+    },
+    {
+      "key": "point_density_enabled",
+      "label": "Point density: enabled",
+      "type": "bool",
+      "default": true,
+      "help": "Per-point (moving-neighbourhood) hazard fields."
+    },
+    {
+      "key": "point_density_radius_m",
+      "label": "Point density: radius (m)",
+      "type": "str",
+      "default": "",
+      "help": "Empty = radius_mult_spacing x measured spacing, proposed to the operator for confirmation."
+    }
+  ]
+}
