@@ -27,3 +27,5 @@ dependencies:
       - laspy[lazrs]
       # --- the shell UI (session 2); never imported by engines or by core/ ---
       - PySide6
+      # --- UI tests (session-2 acceptance criteria; approved 2026-08-27) ---
+      - pytest-qt
