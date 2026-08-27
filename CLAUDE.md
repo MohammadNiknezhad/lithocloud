@@ -1,4 +1,4 @@
-# CLAUDE.md — rules for every Claude Code session in rockslope-studio
+# CLAUDE.md — rules for every Claude Code session in LithoCloud
 
 This repo is the **shell (studio)** that hosts Mohammad's rock-slope point-cloud
 pipelines as independent engines. Read `docs/architecture.md` (v1.0, approved)
@@ -21,7 +21,7 @@ before doing anything. Your session's scope is defined by ONE spec file in
    never imports engine internals. Communication is ONLY
    manifest → subprocess → artifacts.
 5. **Sibling repos are other projects.** `../tlsphoto`, `../ricp`,
-   `../geohazard-pipeline` are read-only from a rockslope-studio session.
+   `../geohazard-pipeline` are read-only from a LithoCloud session.
    Adapter code lives HERE, under `engines/<name>/`. Never write into the
    siblings; never modify `launcher_settings.py` anywhere.
 6. **Unclear spec? Stop and ask.** If the spec conflicts with what you find in
@@ -36,8 +36,8 @@ before doing anything. Your session's scope is defined by ONE spec file in
 ## Project shape
 
 ```
-rockslope-studio/
-├── app/rockslope_studio/     shell: core lib (session 1), UI (session 2), viewers (session 8)
+lithocloud/
+├── app/lithocloud/     shell: core lib (session 1), UI (session 2), viewers (session 8)
 ├── engines/
 │   ├── tlsphoto/             adapter + engine.yaml only  (code in ../../tlsphoto)
 │   ├── ricp/                 adapter + engine.yaml only  (code in ../../ricp/ricp)

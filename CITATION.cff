@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: LithoCloud
+message: If you use this software, please cite it as below.
+type: software
+abstract: >-
+  LithoCloud hosts rock-slope point-cloud pipelines as independent engines:
+  ingest, registration, fusion, preprocessing, surface-condition
+  classification, and structural / hazard analysis of LiDAR and
+  photogrammetric data.
+authors:
+  - family-names: Niknezhad
+    given-names: Mohammad
+    affiliation: "École de technologie supérieure (ÉTS), Montréal, Canada"
+    # TODO: add ORCID, e.g. orcid: "https://orcid.org/0000-0000-0000-0000"
+license: MIT
+repository-code: "https://github.com/MohammadNiknezhad/lithocloud"
+version: 0.1.0
+keywords:
+  - point cloud
+  - LiDAR
+  - photogrammetry
+  - rock slope
+  - rock mass characterisation
+  - registration
+  - geohazard

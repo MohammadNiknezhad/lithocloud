@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core import ARTIFACT_TYPES, FIELD_TYPES, load_manifest, load_params
+from lithocloud.core import ARTIFACT_TYPES, FIELD_TYPES, load_manifest, load_params
 
 
 @pytest.fixture()
@@ -76,7 +76,7 @@ def test_every_type_used_by_the_example_is_a_declared_artifact_type(engine) -> N
 
 
 def test_the_example_command_renders(engine, tmp_path: Path) -> None:
-    from rockslope_studio.core import render_command
+    from lithocloud.core import render_command
 
     rendered = render_command(
         engine,

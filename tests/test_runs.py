@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core.runs import (
+from lithocloud.core.runs import (
     DONE_NAME,
     MANIFEST_NAME,
     RunError,

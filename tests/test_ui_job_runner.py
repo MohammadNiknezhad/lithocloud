@@ -11,14 +11,14 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core import (
+from lithocloud.core import (
     is_done,
     list_runs,
     load_manifest,
     load_params,
     scan_project,
 )
-from rockslope_studio.ui.job_runner import JobRequest, JobRunner
+from lithocloud.ui.job_runner import JobRequest, JobRunner
 
 TIMEOUT_MS = 30_000
 
@@ -251,7 +251,7 @@ def test_a_missing_outputs_json_is_a_warning_not_a_failure(
         'run: {command: "{python} -c pass", cwd: .}\n',
         encoding="utf-8",
     )
-    from rockslope_studio.core import load_manifest as load
+    from lithocloud.core import load_manifest as load
 
     stub = load(stub_dir)
     runner.submit(JobRequest(engine=stub, action=stub.action("a")))
@@ -264,7 +264,7 @@ def test_a_missing_outputs_json_is_a_warning_not_a_failure(
 
 
 def test_an_unlaunchable_command_fails_cleanly(qtbot, tmp_path: Path) -> None:
-    from rockslope_studio.core import load_manifest as load
+    from lithocloud.core import load_manifest as load
 
     bad_dir = tmp_path / "engines" / "bad"
     bad_dir.mkdir(parents=True)
@@ -400,7 +400,7 @@ def test_a_failed_jobs_adapter_error_file_is_echoed_to_the_log(
 ) -> None:
     """Adapters persist early errors to adapter_error.txt (approved
     2026-08-27); the shell echoes it so console-window errors stay readable."""
-    from rockslope_studio.core import load_manifest as load
+    from lithocloud.core import load_manifest as load
 
     stub_dir = tmp_path / "engines" / "stub"
     stub_dir.mkdir(parents=True)

@@ -1,7 +1,7 @@
 """Per-user settings - QSettings, never a file in the repo.
 
 On Windows this lands in the registry under
-``HKCU\\Software\\MohammadNiknezhad\\rockslope-studio``.
+``HKCU\\Software\\MohammadNiknezhad\\LithoCloud``.
 Stored here: the recent-projects list, the last browsed folder per project
 (amendment A1), and the CloudCompare.exe path.
 """
@@ -14,7 +14,9 @@ from pathlib import Path
 from PySide6.QtCore import QSettings
 
 _ORG = "MohammadNiknezhad"
-_APP = "rockslope-studio"
+_APP = "LithoCloud"
+#: The store used before the 2026-08-27 rename. Read once, to migrate.
+_LEGACY_APP = "rockslope-studio"
 
 _RECENT_KEY = "projects/recent"
 _CLOUDCOMPARE_KEY = "tools/cloudcompare_path"
@@ -25,6 +27,45 @@ MAX_RECENT = 8
 
 def _store() -> QSettings:
     return QSettings(_ORG, _APP)
+
+
+def _legacy_store() -> QSettings:
+    return QSettings(_ORG, _LEGACY_APP)
+
+
+# --------------------------------------------------------------------------- #
+# Migration from the pre-rename store (2026-08-27)
+# --------------------------------------------------------------------------- #
+
+#: Keys carried across. Everything here is a convenience, never data - a failed
+#: migration costs a recent-projects list, never a project.
+_MIGRATED_PREFIXES = (_RECENT_KEY, _BROWSE_DIR_KEY, _CLOUDCOMPARE_KEY)
+
+
+def migrate_legacy_settings() -> list[str]:
+    """Copy the old rockslope-studio settings across, once.
+
+    Runs only when the new store is empty and the old one exists, so it can
+    never overwrite settings made under the new name. Returns the keys copied
+    (empty when there was nothing to do).
+    """
+    store = _store()
+    if store.allKeys():
+        return []  # already used under the new name - never clobber it
+
+    legacy = _legacy_store()
+    keys = [
+        key
+        for key in legacy.allKeys()
+        if any(key.startswith(prefix) for prefix in _MIGRATED_PREFIXES)
+    ]
+    if not keys:
+        return []
+
+    for key in keys:
+        store.setValue(key, legacy.value(key))
+    store.sync()
+    return keys
 
 
 # --------------------------------------------------------------------------- #

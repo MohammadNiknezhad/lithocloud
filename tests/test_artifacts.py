@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core.artifacts import (
+from lithocloud.core.artifacts import (
     ARTIFACTS_DIRNAME,
     PROVENANCE_NAME,
     Artifact,
@@ -21,7 +21,7 @@ from rockslope_studio.core.artifacts import (
     scan_project,
     write_provenance,
 )
-from rockslope_studio.core.runs import create_run_dir, finish_run, write_run_manifest
+from lithocloud.core.runs import create_run_dir, finish_run, write_run_manifest
 
 WHEN = dt.datetime(2026, 8, 26, 14, 32)
 

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-CORE_DIR = Path(__file__).resolve().parents[1] / "app" / "rockslope_studio" / "core"
+CORE_DIR = Path(__file__).resolve().parents[1] / "app" / "lithocloud" / "core"
 
 FORBIDDEN = ("PySide6", "PyQt5", "PyQt6", "PySide2", "tkinter", "wx")
 
@@ -52,7 +52,7 @@ def test_importing_core_does_not_pull_in_qt() -> None:
     code = (
         "import sys;"
         "sys.path.insert(0, r'{0}');"
-        "import rockslope_studio.core;"
+        "import lithocloud.core;"
         "bad = [m for m in sys.modules if m.split('.')[0] in {1!r}];"
         "print(','.join(bad))"
     ).format(CORE_DIR.parents[1], FORBIDDEN)
@@ -70,7 +70,7 @@ def test_qt_really_is_installed_so_the_test_above_means_something() -> None:
 
 
 def test_the_public_api_is_importable_from_the_package_root() -> None:
-    core = importlib.import_module("rockslope_studio.core")
+    core = importlib.import_module("lithocloud.core")
 
     for name in (
         "load_manifest",

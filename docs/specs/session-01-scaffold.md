@@ -5,14 +5,14 @@ later session builds on. **No UI, no engine wrapping, no science code.**
 
 ## 1. Repository skeleton
 
-Create in `Projects/rockslope-studio/` (this folder already contains CLAUDE.md
+Create in `Projects/lithocloud/` (this folder already contains CLAUDE.md
 and docs/ — keep them):
 
 - `git init`, first commit; `.gitignore` for Python (+ `runs/`, `*.laz`, `.spyproject`).
 - `README.md` — short: what the studio is, link to docs/architecture.md.
 - `LICENSE` — ask Mohammad which license (his other repos have one; match it unless he says otherwise).
-- Folders per CLAUDE.md "Project shape": `app/rockslope_studio/`, `engines/<5 names>/` (empty except `.gitkeep`), `data_samples/` (with a README explaining its purpose; actual sample clouds are added by Mohammad later).
-- GitHub remote `MohammadNiknezhad/rockslope-studio`: create/push **only if Mohammad confirms in the session**.
+- Folders per CLAUDE.md "Project shape": `app/lithocloud/`, `engines/<5 names>/` (empty except `.gitkeep`), `data_samples/` (with a README explaining its purpose; actual sample clouds are added by Mohammad later).
+- GitHub remote `MohammadNiknezhad/LithoCloud`: create/push **only if Mohammad confirms in the session**.
 
 ## 2. environment.yml
 
@@ -21,7 +21,7 @@ matplotlib, scikit-learn, pyyaml, jsonschema. Pip deps: `laspy[lazrs]`,
 `PySide6`. Nothing else without asking. Verify: `conda env create` works on
 Windows/Anaconda and `python -c "import laspy, PySide6"` succeeds.
 
-## 3. Core library — `app/rockslope_studio/core/`
+## 3. Core library — `app/lithocloud/core/`
 
 Pure-Python, no Qt imports, fully unit-tested. Four small modules:
 

@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from rockslope_studio.core.params import (
+from lithocloud.core.params import (
     ParamField,
     ParamSpec,
     ParamsError,

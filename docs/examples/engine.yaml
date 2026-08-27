@@ -6,7 +6,7 @@
 #  assert it validates, so this file cannot drift away from the loader.
 #
 #  Validate any manifest with:
-#      python -c "from rockslope_studio.core import load_manifest; \
+#      python -c "from lithocloud.core import load_manifest; \
 #                 load_manifest('engines/<name>/engine.yaml')"
 # ============================================================================
 

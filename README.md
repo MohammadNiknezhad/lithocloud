@@ -1,7 +1,14 @@
-# rockslope-studio
+# LithoCloud
 
-A light desktop **studio** that hosts Mohammad's rock-slope point-cloud
-pipelines as independent **engines**.
+**See into the rock — LiDAR, photogrammetry, machine learning**
+
+Mohammad Niknezhad · ÉTS Montréal
+
+---
+
+A light desktop studio that turns raw LiDAR and photogrammetric scans of rock
+slopes into registered, fused, classified and hazard-mapped results — each
+pipeline an independent **engine**, every result carrying its full provenance.
 
 The studio itself contains **zero science logic**. Each pipeline is wrapped
 behind a small `engine.yaml` manifest, runs as a **subprocess**, and writes its
@@ -52,10 +59,14 @@ conda activate rockslope
 From an Anaconda Prompt with the `rockslope` env active:
 
 ```bat
-run_studio.bat
+lithocloud.bat
 ```
 
-(or `set PYTHONPATH=app` then `python -m rockslope_studio`). Add `--dev` to
+The conda environment is still named `rockslope` — it predates the rename and
+was deliberately left alone so a working environment did not have to be
+rebuilt. `run_studio.bat` still works as a shim for one release.
+
+(or `set PYTHONPATH=app` then `python -m lithocloud`). Add `--dev` to
 also see `_`-prefixed development engines such as `engines/_demo/`; add
 `--project <folder>` to skip the start dialog. The CloudCompare path for the
 "Open in CloudCompare" context action is set in File ▸ Settings.
@@ -90,6 +101,20 @@ Engine contract note (decided 2026-08-27): on success an engine writes
 the run folder); the shell registers artifacts from it. A declared key missing
 from the file is a warning, not a failure.
 
+## How to cite
+
+If LithoCloud contributes to work you publish, please cite it. Machine-readable
+metadata is in [CITATION.cff](CITATION.cff); GitHub renders a ready-made
+citation from it under **Cite this repository**.
+
+> Niknezhad, M. (2026). *LithoCloud* (version 0.1.0) [Computer software].
+> École de technologie supérieure (ÉTS), Montréal, Canada.
+> https://github.com/MohammadNiknezhad/lithocloud
+
+The wrapped pipelines have their own repositories and their own citations —
+cite those as well when a result depends on them.
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). ÉTS Montréal appears as the author's affiliation
+only; it is not an endorsement.

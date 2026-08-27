@@ -26,6 +26,8 @@ env/
 
 # --- Studio outputs (never committed) ---
 runs/
+# a local project workspace inside the repo (machine-specific paths)
+tests/project.json
 *.laz
 *.las
 *.e57

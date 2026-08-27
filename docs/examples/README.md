@@ -6,13 +6,13 @@ present and commented.
 
 They are not a real engine — nothing here is ever executed. `tests/` load both
 files and assert they validate, so they can never drift away from the loader in
-`app/rockslope_studio/core/`.
+`app/lithocloud/core/`.
 
 ## Checking your own manifest
 
 ```bat
 conda activate rockslope
-python -c "import sys; sys.path.insert(0,'app'); from rockslope_studio.core import load_manifest, load_params; e=load_manifest('engines/preprocess/engine.yaml'); print(e.id, e.action_ids); [load_params(e.params_path(a)) for a in e.actions if a.params]"
+python -c "import sys; sys.path.insert(0,'app'); from lithocloud.core import load_manifest, load_params; e=load_manifest('engines/preprocess/engine.yaml'); print(e.id, e.action_ids); [load_params(e.params_path(a)) for a in e.actions if a.params]"
 ```
 
 Anything invalid raises `ManifestError` / `ParamsError` with the file, the

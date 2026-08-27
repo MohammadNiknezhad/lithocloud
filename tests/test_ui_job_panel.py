@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core import RunRecord
-from rockslope_studio.core.runs import create_run_dir, finish_run, write_run_manifest
-from rockslope_studio.ui.job_panel import JobPanel
+from lithocloud.core import RunRecord
+from lithocloud.core.runs import create_run_dir, finish_run, write_run_manifest
+from lithocloud.ui.job_panel import JobPanel
 
 
 @pytest.mark.parametrize(

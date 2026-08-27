@@ -32,7 +32,7 @@ from typing import Any, Mapping
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
-from rockslope_studio.core import (
+from lithocloud.core import (
     Action,
     Artifact,
     Engine,
@@ -43,8 +43,8 @@ from rockslope_studio.core import (
     render_command,
     write_run_manifest,
 )
-from rockslope_studio.core.runs import create_run_dir
-from rockslope_studio.core._util import atomic_write_json
+from lithocloud.core.runs import create_run_dir
+from lithocloud.core._util import atomic_write_json
 
 from .input_files import ExternalFile
 

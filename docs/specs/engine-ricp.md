@@ -28,7 +28,7 @@ One action `register`:
 
 ## Session 9 — package split (works INSIDE ../ricp — separate rules)
 
-This later session runs in the **ricp repo**, not rockslope-studio. Before it
+This later session runs in the **ricp repo**, not LithoCloud. Before it
 starts: add a CLAUDE.md to the ricp repo (with Mohammad's permission) carrying
 the same hard rules. Plan:
 

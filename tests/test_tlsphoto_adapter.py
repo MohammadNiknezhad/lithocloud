@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core import discover_engines, load_manifest, load_params
+from lithocloud.core import discover_engines, load_manifest, load_params
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENGINE_DIR = REPO_ROOT / "engines" / "tlsphoto"
@@ -521,8 +521,8 @@ def test_adapter_error_exits_2_without_invoking_tlsphoto(tmp_path: Path) -> None
 def test_ingest_through_the_real_job_runner(qtbot, tmp_path: Path, engine) -> None:
     """The shared command template (with inputs this action does not declare)
     must render, launch the adapter, and register the canonical artifact."""
-    from rockslope_studio.core import scan_project
-    from rockslope_studio.ui.job_runner import JobRequest, JobRunner
+    from lithocloud.core import scan_project
+    from lithocloud.ui.job_runner import JobRequest, JobRunner
 
     sample = tmp_path / "tiny sample.txt"
     sample.write_text("1 2 3\n4 5 6\n7 8 9\n", encoding="utf-8")

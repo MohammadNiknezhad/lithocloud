@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core import Artifact, find_engines
-from rockslope_studio.ui.engine_panel import EnginePanel
-from rockslope_studio.ui.job_runner import JobRequest
+from lithocloud.core import Artifact, find_engines
+from lithocloud.ui.engine_panel import EnginePanel
+from lithocloud.ui.job_runner import JobRequest
 
 
 def fake_artifact(artifact_id: str, type_: str) -> Artifact:

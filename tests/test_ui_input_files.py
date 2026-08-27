@@ -6,16 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core import ARTIFACT_TYPES, Artifact, IOSpec
-from rockslope_studio.ui.engine_panel import EnginePanel, _InputPicker
-from rockslope_studio.ui.input_files import (
+from lithocloud.core import ARTIFACT_TYPES, Artifact, IOSpec
+from lithocloud.ui.engine_panel import EnginePanel, _InputPicker
+from lithocloud.ui.input_files import (
     ALL_FILES_FILTER,
     ExternalFile,
     dialog_filter,
     extensions_for,
     is_expected_extension,
 )
-from rockslope_studio.ui.job_runner import JobRequest
+from lithocloud.ui.job_runner import JobRequest
 
 
 def fake_artifact(artifact_id: str, type_: str) -> Artifact:
@@ -204,7 +204,7 @@ def test_expected_extensions_produce_no_warning(qtbot, tmp_path: Path) -> None:
 
 @pytest.fixture()
 def panel(qtbot, repo_root: Path) -> EnginePanel:
-    from rockslope_studio.core import find_engines
+    from lithocloud.core import find_engines
 
     widget = EnginePanel()
     qtbot.addWidget(widget)
@@ -268,7 +268,7 @@ def test_the_panel_seeds_the_pickers_start_folder(panel: EnginePanel, tmp_path: 
 def test_job_request_uses_the_absolute_path_for_an_external_file(
     tmp_path: Path, repo_root: Path
 ) -> None:
-    from rockslope_studio.core import load_manifest
+    from lithocloud.core import load_manifest
 
     engine = load_manifest(repo_root / "engines" / "_demo")
     external = ExternalFile(tmp_path / "raw cloud.csv")
@@ -285,7 +285,7 @@ def test_job_request_uses_the_absolute_path_for_an_external_file(
 def test_job_request_mixes_artifacts_and_files_in_one_slot(
     tmp_path: Path, repo_root: Path
 ) -> None:
-    from rockslope_studio.core import load_manifest
+    from lithocloud.core import load_manifest
 
     engine = load_manifest(repo_root / "engines" / "_demo")
     artifact = Artifact(
@@ -316,7 +316,7 @@ def test_an_external_input_shows_as_an_unresolved_lineage_source(
 ) -> None:
     """architecture section 16: the path resolves to no artifact, and
     parents_of returns such ids as unresolved - by design."""
-    from rockslope_studio.core.artifacts import index_by_id, parents_of
+    from lithocloud.core.artifacts import index_by_id, parents_of
 
     raw = str((tmp_path / "raw.las").resolve())
     product = Artifact(
@@ -333,8 +333,8 @@ def test_end_to_end_an_external_file_reaches_provenance_untouched(
     qtbot, tmp_path: Path, repo_root: Path
 ) -> None:
     """The amendment's core guarantee, through a real subprocess run."""
-    from rockslope_studio.core import load_manifest, load_params, scan_project
-    from rockslope_studio.ui.job_runner import JobRunner
+    from lithocloud.core import load_manifest, load_params, scan_project
+    from lithocloud.ui.job_runner import JobRunner
     import json
 
     raw = tmp_path / "raw inputs" / "previous stats.csv"

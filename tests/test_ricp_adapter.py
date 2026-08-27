@@ -21,7 +21,7 @@ import pytest
 # ricp draws plots at the end of a full run; never open a window in tests.
 os.environ.setdefault("MPLBACKEND", "Agg")
 
-from rockslope_studio.core import discover_engines, load_manifest, load_params
+from lithocloud.core import discover_engines, load_manifest, load_params
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENGINE_DIR = REPO_ROOT / "engines" / "ricp"

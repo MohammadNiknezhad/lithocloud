@@ -1,6 +1,4 @@
 @echo off
-rem Launch rockslope-studio. Run from an Anaconda Prompt with the
-rem "rockslope" env active:  conda activate rockslope
-cd /d %~dp0
-set PYTHONPATH=%~dp0app;%PYTHONPATH%
-python -m rockslope_studio %*
+rem Renamed to lithocloud.bat on 2026-08-27. This shim is kept for one
+rem release so old shortcuts keep working; use lithocloud.bat directly.
+call "%~dp0lithocloud.bat" %*

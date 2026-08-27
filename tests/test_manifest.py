@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core import manifest as M
-from rockslope_studio.core.manifest import (
+from lithocloud.core import manifest as M
+from lithocloud.core.manifest import (
     ManifestError,
     discover_engines,
     find_engines,

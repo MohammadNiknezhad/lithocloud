@@ -38,7 +38,7 @@ unless a dev flag is on).
 
 - No science logic; no plotting; no 3D (session 8 = figures/tables viewers,
   v2 = embedded 3D).
-- Shell imports `rockslope_studio.core` only — never engine internals.
+- Shell imports `lithocloud.core` only — never engine internals.
 - Keep it light: standard widgets, no styling framework, cold start < 2 s.
 
 ## Acceptance

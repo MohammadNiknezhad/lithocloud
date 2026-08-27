@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from rockslope_studio.core.manifest import (
+from lithocloud.core.manifest import (
     ManifestError,
     load_manifest,
     render_argv,

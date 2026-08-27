@@ -13,8 +13,8 @@ from PySide6.QtWidgets import (
     QSpinBox,
 )
 
-from rockslope_studio.core import ParamsError, ParamSpec, load_params
-from rockslope_studio.ui.param_form import ParamForm
+from lithocloud.core import ParamsError, ParamSpec, load_params
+from lithocloud.ui.param_form import ParamForm
 
 FULL_SPEC = {
     "version": 1,

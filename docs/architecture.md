@@ -1,4 +1,6 @@
-# rockslope-studio — Architecture Design (v1.0 — approved)
+# LithoCloud — Architecture Design (v1.0 — approved)
+
+*The project was called **rockslope-studio** until 2026-08-27, when it was renamed to LithoCloud (package `rockslope_studio` → `lithocloud`). Nothing in this design changed with the name; run folders, provenance and manifests written before the rename remain valid and untouched.*
 
 *Approved by Mohammad on 2026-08-26. Implementation follows the session plan in §13. Rule 2 stands permanently: any logic change to existing pipelines requires his separate explicit confirmation, every time.*
 
@@ -147,13 +149,13 @@ Jobs: one engine run at a time by default (16 GB RAM), queued if you start more.
 You chose "one repo, many packages". The inventory then showed that tlsphoto, ricp and geohazard already have their **own GitHub repos**. Two honest options:
 
 **Option A — recommended: monorepo + sibling repos.**
-`rockslope-studio` (new repo) contains the shell, the manifests/adapters for the three existing pipelines, and the two new engines. tlsphoto, ricp and geohazard **stay in their own repos**, side by side in `Projects/`, found by local path:
+`LithoCloud` (new repo) contains the shell, the manifests/adapters for the three existing pipelines, and the two new engines. tlsphoto, ricp and geohazard **stay in their own repos**, side by side in `Projects/`, found by local path:
 
 ```
 Projects/
-├── rockslope-studio/            ← NEW repo (github.com/MohammadNiknezhad/rockslope-studio)
+├── lithocloud/            ← NEW repo (github.com/MohammadNiknezhad/lithocloud)
 │   ├── CLAUDE.md                ← rules for every Claude Code session
-│   ├── app/                     ← the shell (rockslope_studio package)
+│   ├── app/                     ← the shell (lithocloud package)
 │   ├── engines/
 │   │   ├── tlsphoto/            ← engine.yaml + thin adapter only (code stays in ../../tlsphoto)
 │   │   ├── ricp/                ← engine.yaml + adapter (code stays in ../../ricp/ricp)
@@ -200,7 +202,7 @@ For every restructuring (e.g., splitting `ricp.py`, packaging the condition scri
 
 | # | Session | Produces |
 |---|---|---|
-| 1 | Scaffold | `rockslope-studio` repo, CLAUDE.md, folder structure, environment.yml, tiny artifact/provenance library |
+| 1 | Scaffold | `LithoCloud` repo, CLAUDE.md, folder structure, environment.yml, tiny artifact/provenance library |
 | 2 | Shell core | Project open/create, engine discovery, auto-forms, subprocess job runner, log panel — first working window |
 | 3 | Wrap tlsphoto | engine.yaml + adapter, actions ingest/register/fuse — first real engine visible in the UI |
 | 4 | Wrap geohazard | 6 stage-actions with resume/redo |
@@ -214,7 +216,7 @@ Each session: starts from its spec in `docs/specs/`, ends with tests green and y
 
 ## 14. Decisions (resolved 2026-08-26)
 
-- **D1** — Option A: tlsphoto, ricp and geohazard keep their own repos beside `rockslope-studio`; the monorepo holds the shell, the adapters, and the condition + preprocess engines.
+- **D1** — Option A: tlsphoto, ricp and geohazard keep their own repos beside `LithoCloud`; the monorepo holds the shell, the adapters, and the condition + preprocess engines.
 - **D2** — One shared conda env (`rockslope`) from one `environment.yml`; per-engine envs only if a conflict ever appears.
 - **D3** — Embedded 3D viewer deferred to v2. v1 ships figures/stereonets/tables/reports + an "Open in CloudCompare" button.
 - **D4** — The app **asks the user** where each project workspace lives: chosen in the project-creation dialog, stored in `project.json`, remembered per project. No hard-coded location.

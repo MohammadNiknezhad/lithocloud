@@ -1,5 +1,18 @@
+[project]
+name = "lithocloud"
+version = "0.1.0"
+description = "See into the rock — LiDAR, photogrammetry, machine learning"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Mohammad Niknezhad" }]
+keywords = ["point cloud", "LiDAR", "photogrammetry", "rock slope", "geohazard"]
+
+[project.urls]
+Repository = "https://github.com/MohammadNiknezhad/lithocloud"
+
 [tool.pytest.ini_options]
-# The shell package lives under app/, so tests can `import rockslope_studio`
+# The shell package lives under app/, so tests can `import lithocloud`
 # without the repo having to be pip-installed (Spyder-friendly).
 pythonpath = ["app"]
 testpaths = ["tests"]
