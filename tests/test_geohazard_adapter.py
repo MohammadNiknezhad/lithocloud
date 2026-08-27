@@ -380,6 +380,22 @@ def test_collect_outputs_without_a_native_folder(tmp_path: Path) -> None:
     assert adapter.collect_outputs(tmp_path) == {}
 
 
+def test_adapter_error_is_persisted_for_the_shell(tmp_path: Path) -> None:
+    """An early failure exits 2 AND leaves adapter_error.txt in the run folder
+    (approved 2026-08-27) - interactive consoles close, the file stays."""
+    params_file = tmp_path / "params.json"
+    params_file.write_text(json.dumps(defaults_for("run")), encoding="utf-8")
+
+    rc = adapter.main(
+        ["run", "--params", str(params_file), "--out", str(tmp_path)]
+    )
+
+    assert rc == 2  # neither an artifact nor in_file given
+    assert not (tmp_path / "outputs.json").exists()
+    error_text = (tmp_path / "adapter_error.txt").read_text(encoding="utf-8")
+    assert "exactly ONE input" in error_text
+
+
 def test_declared_outputs_match_what_collect_can_produce(engine) -> None:
     """Every key collect_outputs may emit is declared in the manifest."""
     declared = {slot.key for slot in engine.action("run").outputs}

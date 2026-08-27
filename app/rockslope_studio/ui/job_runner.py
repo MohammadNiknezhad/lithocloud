@@ -48,6 +48,9 @@ from rockslope_studio.core._util import atomic_write_json
 
 OUTPUTS_NAME = "outputs.json"
 PARAMS_NAME = "params.json"
+#: Adapters write their early-failure message here (approved 2026-08-27), so
+#: an error from an interactive console stays readable after the window closes.
+ADAPTER_ERROR_NAME = "adapter_error.txt"
 
 _POLL_MS = 300  # how often an interactive (console) process is checked
 
@@ -335,6 +338,9 @@ class JobRunner(QObject):
             self.job_log.emit("ERROR: could not record run end - {0}".format(exc))
             ok = False
 
+        if not ok:
+            self._show_adapter_error(job)
+
         if job.cancelled:
             self.job_log.emit("=== cancelled (exit code {0}) ===".format(exit_code))
         elif ok:
@@ -347,6 +353,22 @@ class JobRunner(QObject):
         self._current = None
         self.job_finished.emit(job, exit_code, ok)
         self._start_next()
+
+    def _show_adapter_error(self, job: Job) -> None:
+        """Echo the adapter's persisted error message into the log panel.
+
+        Interactive engines run in their own console window, which closes with
+        the process - without this the reason for an early failure is gone.
+        """
+        path = job.run_dir / ADAPTER_ERROR_NAME
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return
+        if text:
+            self.job_log.emit("--- {0} ---".format(ADAPTER_ERROR_NAME))
+            for line in text.splitlines():
+                self.job_log.emit(line)
 
     def _register_outputs(self, job: Job) -> tuple[list[Artifact], list[str]]:
         """Apply the outputs.json contract. Never raises: problems come back

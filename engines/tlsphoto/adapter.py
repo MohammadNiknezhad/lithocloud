@@ -39,8 +39,23 @@ from pathlib import Path
 TLSPHOTO_REPO = Path(__file__).resolve().parents[3] / "tlsphoto"
 
 OUTPUTS_NAME = "outputs.json"
+ERROR_NAME = "adapter_error.txt"
 
 ACTIONS = ("ingest", "register", "fuse", "compare", "split", "export", "info")
+
+
+def _write_error_file(run_dir: "str | Path", error: Exception) -> None:
+    """Persist an early failure so it stays readable after a console closes.
+
+    Best-effort: writing must never mask the original error.
+    """
+    try:
+        Path(run_dir).mkdir(parents=True, exist_ok=True)
+        (Path(run_dir) / ERROR_NAME).write_text(
+            "ERROR: {0}\n".format(error), encoding="utf-8"
+        )
+    except OSError:
+        pass
 
 
 class AdapterError(ValueError):
@@ -403,6 +418,7 @@ def main(argv: "list[str] | None" = None) -> int:
         cli_argv = build_cli_argv(args.action, params, inputs, run_dir)
     except AdapterError as exc:
         print("ERROR: {0}".format(exc), file=sys.stderr)
+        _write_error_file(run_dir, exc)
         return 2
 
     print("tlsphoto " + " ".join(cli_argv), flush=True)

@@ -393,3 +393,54 @@ def test_an_interactive_action_runs_via_popen_and_registers(
     assert is_done(job.run_dir)
     assert any("interactive" in line for line in lines)
     assert len(scan_project(tmp_path)) == 1
+
+
+def test_a_failed_jobs_adapter_error_file_is_echoed_to_the_log(
+    qtbot, tmp_path: Path
+) -> None:
+    """Adapters persist early errors to adapter_error.txt (approved
+    2026-08-27); the shell echoes it so console-window errors stay readable."""
+    from rockslope_studio.core import load_manifest as load
+
+    stub_dir = tmp_path / "engines" / "stub"
+    stub_dir.mkdir(parents=True)
+    # a stand-in adapter: writes adapter_error.txt into the run dir, exits 2
+    (stub_dir / "fail.py").write_text(
+        "import pathlib, sys\n"
+        "run_dir = pathlib.Path(sys.argv[1])\n"
+        "run_dir.joinpath('adapter_error.txt').write_text(\n"
+        "    'ERROR: ingest: in_files is required', encoding='utf-8')\n"
+        "sys.exit(2)\n",
+        encoding="utf-8",
+    )
+    (stub_dir / "engine.yaml").write_text(
+        'id: stub\nname: Stub\nversion: "0.0"\n'
+        "actions: [{id: a, label: A}]\n"
+        'run: {command: "{python} fail.py {run_dir}", cwd: .}\n',
+        encoding="utf-8",
+    )
+
+    runner = JobRunner(tmp_path)
+    lines: list[str] = []
+    runner.job_log.connect(lines.append)
+
+    stub = load(stub_dir)
+    runner.submit(JobRequest(engine=stub, action=stub.action("a")))
+    ((job, code, ok),) = wait_finished(qtbot, runner)
+
+    assert not ok and code == 2
+    assert any("adapter_error.txt" in line for line in lines)
+    assert any("in_files is required" in line for line in lines)
+
+
+def test_a_successful_job_does_not_look_for_an_error_file(
+    qtbot, tmp_path: Path, demo_engine, demo_defaults
+) -> None:
+    runner = JobRunner(tmp_path)
+    lines: list[str] = []
+    runner.job_log.connect(lines.append)
+
+    runner.submit(make_request(demo_engine, demo_defaults))
+    wait_finished(qtbot, runner)
+
+    assert not any("adapter_error.txt" in line for line in lines)

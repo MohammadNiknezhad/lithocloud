@@ -506,6 +506,10 @@ def test_adapter_error_exits_2_without_invoking_tlsphoto(tmp_path: Path) -> None
     assert rc == 2  # in_files missing
     assert not (tmp_path / "outputs.json").exists()
 
+    # the message is persisted so it survives a closed console window
+    error_text = (tmp_path / "adapter_error.txt").read_text(encoding="utf-8")
+    assert "in_files" in error_text
+
 
 
 
