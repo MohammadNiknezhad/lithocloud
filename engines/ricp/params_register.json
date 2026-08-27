@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "ci",
+      "label": "Confidence interval (%)",
+      "type": "float",
+      "default": 95.0,
+      "help": "Confidence interval % for CT and reg_CI (ricp DEFAULT_CI)."
+    },
+    {
+      "key": "max_levels",
+      "label": "Max R-ICP levels",
+      "type": "int",
+      "default": 20,
+      "min": 1,
+      "help": "Max R-ICP filter levels (ricp DEFAULT_MAX_LEVELS)."
+    },
+    {
+      "key": "target_points",
+      "label": "Target points per cloud",
+      "type": "str",
+      "default": "300000",
+      "help": "Registration subsample size per cloud (count-based), or 'auto' for SPACING-DRIVEN: the same registration spacing (~2x the coarser native) is requested for both clouds, verified, and hard-capped at 1.5M pts. Minimum 2000."
+    },
+    {
+      "key": "icp_max_iter",
+      "label": "ICP max iterations",
+      "type": "int",
+      "default": 60,
+      "min": 1,
+      "help": "Max inner ICP iterations per level (ricp DEFAULT_ICP_MAX_ITER)."
+    },
+    {
+      "key": "icp_method",
+      "label": "ICP variant",
+      "type": "choice",
+      "default": "plane",
+      "choices": ["plane", "point"],
+      "help": "point-to-plane (tighter on terrain) or classic point-to-point."
+    },
+    {
+      "key": "coarse_mode",
+      "label": "Coarse mode",
+      "type": "choice",
+      "default": "auto",
+      "choices": ["auto", "gui", "none"],
+      "help": "auto = SCENE-style top-view correlation (no user interaction, but falls back to the GUI if placement quality is poor); gui = manual pick + nudge tool; none = clouds already roughly placed. IGNORED by the 'register' action, which always uses the supplied coarse transform."
+    },
+    {
+      "key": "coarse",
+      "label": "Quick coarse 'tx ty tz yaw_deg'",
+      "type": "str",
+      "default": "",
+      "help": "Quick coarse transform as four numbers (overrides coarse mode). Empty = not passed."
+    },
+    {
+      "key": "coarse_cell",
+      "label": "Coarse grid cell (m)",
+      "type": "str",
+      "default": "",
+      "help": "Top-view grid cell size in metres for auto coarse. Empty = automatic (ricp default None)."
+    },
+    {
+      "key": "no_tilt_fit",
+      "label": "Skip tilt fit",
+      "type": "bool",
+      "default": false,
+      "help": "Skip the DEM-difference roll/pitch estimation that runs after coarse placement."
+    },
+    {
+      "key": "max_tilt",
+      "label": "Max tilt (deg)",
+      "type": "float",
+      "default": 10.0,
+      "help": "Sanity bound in degrees for the tilt fit (the fit self-validates; this only rejects the physically absurd)."
+    },
+    {
+      "key": "overlap",
+      "label": "Overlap crop radius",
+      "type": "str",
+      "default": "auto",
+      "help": "Common-overlap crop radius in metres after coarse placement: 'auto' = 10x point spacing, 'off' = disable, or a number."
+    },
+    {
+      "key": "equivalence_margin",
+      "label": "Equivalence margin (m)",
+      "type": "str",
+      "default": "auto",
+      "help": "Practical-equivalence margin in metres for level selection, look-ahead and polish acceptance; 'auto' = max(2.5% of the best held-out J, 2 mm). Set from your application tolerance when one exists."
+    },
+    {
+      "key": "sigma_floor",
+      "label": "Sigma floor (m)",
+      "type": "float",
+      "default": 0.02,
+      "help": "Floor in metres for the robust ICP residual scale (~2x sensor noise; sensor-dependent). Must be > 0."
+    },
+    {
+      "key": "no_polish",
+      "label": "Skip polish pass",
+      "type": "bool",
+      "default": false,
+      "help": "Skip the final high-density polish ICP pass."
+    },
+    {
+      "key": "validate_swap",
+      "label": "Validate swap (reverse run)",
+      "type": "bool",
+      "default": false,
+      "help": "Also register in the reverse direction and report the composition error - a directional-bias diagnostic. Roughly doubles runtime."
+    },
+    {
+      "key": "swap_max_levels",
+      "label": "Swap max levels",
+      "type": "str",
+      "default": "",
+      "help": "Level budget for the reverse (swap) validation. Empty = same as max levels, so the diagnostic is strictly symmetric."
+    },
+    {
+      "key": "cycle_tolerance",
+      "label": "Cycle tolerance (m)",
+      "type": "str",
+      "default": "",
+      "help": "Cycle-consistency tolerance in metres for validate-swap. Empty = auto (0.5x the common registration spacing)."
+    },
+    {
+      "key": "cycle_experiment",
+      "label": "Cycle experiment",
+      "type": "bool",
+      "default": false,
+      "help": "DECISIVE directional diagnostic (replaces the plain swap): one frozen common-overlap mask at the final pose, density parity enforced, then forward and reverse on exactly the same two subsets. Roughly doubles runtime."
+    },
+    {
+      "key": "seed",
+      "label": "Random seed",
+      "type": "int",
+      "default": 0,
+      "help": "Subsampling RNG seed."
+    }
+  ]
+}

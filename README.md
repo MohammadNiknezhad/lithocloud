@@ -67,6 +67,11 @@ conda activate rockslope
 pytest
 ```
 
+**Activate the environment — do not call `python.exe` by its full path.** The
+`rockslope` env's `Library\bin` holds the BLAS DLLs; without activation any
+numpy matrix multiply dies with a Windows DLL error (`0xC06D007F`), which takes
+the ricp engine down with it.
+
 ## Documentation
 
 - **[docs/architecture.md](docs/architecture.md)** — the approved design (v1.0). The authority for this repo.

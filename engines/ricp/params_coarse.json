@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "target_points",
+      "label": "Target points per cloud",
+      "type": "str",
+      "default": "300000",
+      "help": "Registration subsample size per cloud (count-based), or 'auto' for SPACING-DRIVEN: the same registration spacing (~2x the coarser native) is requested for both clouds, verified, and hard-capped at 1.5M pts. Minimum 2000."
+    },
+    {
+      "key": "coarse_mode",
+      "label": "Coarse mode",
+      "type": "choice",
+      "default": "auto",
+      "choices": [
+        "auto",
+        "gui",
+        "none"
+      ],
+      "help": "auto = SCENE-style top-view correlation (no user interaction, but falls back to the GUI if placement quality is poor); gui = manual pick + nudge tool; none = clouds already roughly placed. IGNORED by the 'register' action, which always uses the supplied coarse transform."
+    },
+    {
+      "key": "coarse",
+      "label": "Quick coarse 'tx ty tz yaw_deg'",
+      "type": "str",
+      "default": "",
+      "help": "Quick coarse transform as four numbers (overrides coarse mode). Empty = not passed."
+    },
+    {
+      "key": "coarse_cell",
+      "label": "Coarse grid cell (m)",
+      "type": "str",
+      "default": "",
+      "help": "Top-view grid cell size in metres for auto coarse. Empty = automatic (ricp default None)."
+    },
+    {
+      "key": "no_tilt_fit",
+      "label": "Skip tilt fit",
+      "type": "bool",
+      "default": false,
+      "help": "Skip the DEM-difference roll/pitch estimation that runs after coarse placement."
+    },
+    {
+      "key": "max_tilt",
+      "label": "Max tilt (deg)",
+      "type": "float",
+      "default": 10.0,
+      "help": "Sanity bound in degrees for the tilt fit (the fit self-validates; this only rejects the physically absurd)."
+    },
+    {
+      "key": "seed",
+      "label": "Random seed",
+      "type": "int",
+      "default": 0,
+      "help": "Subsampling RNG seed."
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+# ricp adapter (session 5). The pipeline code lives read-only in
+# ../../../ricp/ricp/ricp.py (its own repo); this folder holds ONLY this
+# manifest, the params files, and adapter.py. Zero changes inside ../ricp.
+#
+# Three actions (coarse/fine split approved by Mohammad 2026-08-27):
+#
+#   coarse       standalone coarse alignment -> a transform artifact. ricp.py
+#                has no --coarse-only flag, so the adapter re-composes the
+#                exact code path main() runs up to transform_coarse.txt, by
+#                calling ricp's own functions in ricp's own order. An
+#                equivalence test compares its output against a real ricp.py
+#                run. See adapter.py for the mirrored block.
+#   register     full R-ICP, REQUIRING a coarse transform (--coarse-matrix).
+#                Non-interactive: with the matrix supplied ricp can never fall
+#                back to the picking GUI, so it is safe to stream into the log.
+#   register_gui full R-ICP exactly as ricp.py runs today (coarse handled
+#                inside ricp: auto / gui / none). Interactive console.
+id: ricp
+name: R-ICP Registration
+version: 1.0.0   # ricp.py carries no __version__; adapter version
+description: >
+  Recursive-filter ICP registration (Aubertin 2025) with SCENE-style coarse
+  alignment. Wrapped as-is per architecture section 6 - ricp.py is untouched;
+  the package split is session 9.
+
+actions:
+  - id: coarse
+    label: Coarse alignment only (produces a transform)
+    description: >
+      Runs ricp's coarse placement (auto top-view correlation, manual GUI
+      picking, or a supplied matrix) plus the DEM tilt fit, and writes the
+      4x4. Interactive: the GUI is used directly in 'gui' mode, and 'auto'
+      falls back to it when placement quality is poor.
+    interactive: true
+    inputs:
+      - {key: reference, type: pointcloud}
+      - {key: align, type: pointcloud}
+    outputs:
+      - {key: transform, type: transform}
+    params: params_coarse.json
+
+  - id: register
+    label: R-ICP fine registration (from a coarse transform)
+    description: >
+      Full R-ICP using a transform artifact as the coarse placement
+      (--coarse-matrix). Runs in the background with live progress in the log
+      panel - no console needed, because a supplied matrix removes every
+      interactive path.
+    interactive: false
+    inputs:
+      - {key: reference, type: pointcloud}
+      - {key: align, type: pointcloud}
+      - {key: coarse, type: transform}
+    outputs:
+      - {key: registered, type: pointcloud}
+      - {key: transform, type: transform}
+      - {key: report, type: report}
+      - {key: plots, type: figure}
+    params: params_register.json
+
+  - id: register_gui
+    label: R-ICP full run (coarse inside ricp, console)
+    description: >
+      ricp.py end to end exactly as it runs today: coarse-mode auto / gui /
+      none is handled inside ricp itself. Launches in its own console window
+      so the SCENE-style picking and matplotlib windows behave as always.
+    interactive: true
+    inputs:
+      - {key: reference, type: pointcloud}
+      - {key: align, type: pointcloud}
+    outputs:
+      - {key: registered, type: pointcloud}
+      - {key: transform, type: transform}
+      - {key: report, type: report}
+      - {key: plots, type: figure}
+    params: params_register.json
+
+run:
+  command: >-
+    {python} adapter.py {action}
+    --params {params_file}
+    --out {run_dir}
+    --reference={input:reference}
+    --align={input:align}
+    --coarse-artifact={input:coarse}
+  cwd: .
