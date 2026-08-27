@@ -47,6 +47,19 @@ conda env create -f environment.yml
 conda activate rockslope
 ```
 
+## Launch the studio
+
+From an Anaconda Prompt with the `rockslope` env active:
+
+```bat
+run_studio.bat
+```
+
+(or `set PYTHONPATH=app` then `python -m rockslope_studio`). Add `--dev` to
+also see `_`-prefixed development engines such as `engines/_demo/`; add
+`--project <folder>` to skip the start dialog. The CloudCompare path for the
+"Open in CloudCompare" context action is set in File ▸ Settings.
+
 ## Run the tests
 
 ```bat
@@ -63,8 +76,14 @@ pytest
 
 ## Status
 
-Session 1 (scaffold + core library) complete. The shell UI arrives in session 2;
-real engine manifests in sessions 3–7.
+Sessions 1 (scaffold + core library) and 2 (shell: first working window,
+subprocess job runner, auto-forms) complete. Real engine manifests arrive in
+sessions 3–7; results viewers in session 8.
+
+Engine contract note (decided 2026-08-27): on success an engine writes
+`<run_dir>/outputs.json` = `{"<output_key>": ["file", ...]}` (paths relative to
+the run folder); the shell registers artifacts from it. A declared key missing
+from the file is a warning, not a failure.
 
 ## License
 

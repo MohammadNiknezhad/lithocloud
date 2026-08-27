@@ -1,12 +1,16 @@
-"""Shared fixtures for the core-library tests."""
+"""Shared fixtures for the core-library and UI tests."""
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
 import pytest
+
+# UI tests must not need a display; must be set before Qt is first imported.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = REPO_ROOT / "app"
