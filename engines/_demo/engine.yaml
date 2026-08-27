@@ -1,0 +1,41 @@
+# Development-only engine (session 2). The '_' folder prefix hides it from
+# real discovery; launch the studio with --dev to see it.
+# It exercises every part of the shell: params form, optional input picker,
+# progress log, outputs.json registration, failure, and the interactive
+# console path - with zero science logic.
+id: demo
+name: Demo Engine (dev only)
+version: 0.1.0
+description: >
+  Harmless test engine: sleeps, prints progress, writes a small CSV. Can be
+  told to crash so the shell's failure handling can be exercised by hand.
+actions:
+  - id: run
+    label: Sleep, print progress, write a CSV
+    interactive: false
+    inputs:
+      # Optional so the very first run of an empty project works; a second run
+      # can pick the first run's stats table and show a lineage chain.
+      - {key: previous, type: table, optional: true}
+    outputs:
+      - {key: stats, type: table}
+    params: params_run.json
+  - id: ask
+    label: Ask a question in a console (interactive)
+    interactive: true
+    inputs:
+      - {key: previous, type: table, optional: true}
+    outputs:
+      - {key: note, type: report}
+    # Shares the run params (the shared command template passes {params_file},
+    # so every action of this engine must declare a params file).
+    params: params_run.json
+run:
+  # --previous={...} (embedded style) so an omitted optional input leaves no
+  # dangling flag: the engine receives --previous= and treats empty as absent.
+  command: >-
+    {python} demo_engine.py {action}
+    --params {params_file}
+    --out {run_dir}
+    --previous={input:previous}
+  cwd: .

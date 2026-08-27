@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "fields": [
+    {
+      "key": "seconds",
+      "label": "Total sleep time (s)",
+      "type": "float",
+      "default": 3.0,
+      "min": 0.0,
+      "max": 600.0,
+      "help": "How long the whole run takes. Spread evenly over the steps."
+    },
+    {
+      "key": "steps",
+      "label": "Progress steps",
+      "type": "int",
+      "default": 6,
+      "min": 1,
+      "max": 1000,
+      "help": "Number of progress lines printed to the log."
+    },
+    {
+      "key": "rows",
+      "label": "CSV rows",
+      "type": "int",
+      "default": 20,
+      "min": 1,
+      "max": 100000,
+      "help": "Rows written to stats.csv."
+    },
+    {
+      "key": "mode",
+      "label": "Mode",
+      "type": "choice",
+      "default": "normal",
+      "choices": ["normal", "crash"],
+      "help": "'crash' exits with code 3 halfway through, WITHOUT writing outputs.json - for testing the shell's failure handling."
+    },
+    {
+      "key": "message",
+      "label": "Message",
+      "type": "str",
+      "default": "hello from demo",
+      "help": "Echoed into the log and the CSV header comment."
+    }
+  ]
+}
