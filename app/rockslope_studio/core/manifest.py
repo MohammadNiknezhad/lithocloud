@@ -375,9 +375,10 @@ def _check_command_template(engine: Engine, prefix: str) -> None:
 
     ``run.command`` is one template shared by all actions, so an
     ``{input:<key>}`` only has to be declared by **at least one** action - an
-    engine like geohazard has six stages with different inputs. An action that
-    does not declare the key is caught by :func:`render_command`, with a message
-    naming the action.
+    engine like geohazard has six stages with different inputs. For an action
+    that does not declare the key, rendering treats it as an omitted optional
+    (approved 2026-08-27); a key NO action declares is rejected here, so a typo
+    still fails at manifest load.
     """
     allowed = ", ".join("{" + name + "}" for name in FIXED_PLACEHOLDERS)
     known_inputs = {slot.key for action in engine.actions for slot in action.inputs}
@@ -535,10 +536,11 @@ def render_command(
             try:
                 slot = act.input(arg)
             except KeyError:
-                raise ManifestError(
-                    "{0}/{1}: run.command uses {{input:{2}}} but this action declares "
-                    "no such input".format(engine.id, act.id, arg)
-                ) from None
+                # Approved 2026-08-27: the template is shared by all actions, so
+                # a key the CURRENT action does not declare renders as empty
+                # (like an omitted optional). Typos are still caught at load
+                # time - load_manifest rejects keys NO action declares.
+                return ""
             if arg not in values or values[arg] is None:
                 if slot.optional:
                     return ""
@@ -612,10 +614,11 @@ def render_argv(
             try:
                 slot = act.input(arg)
             except KeyError:
-                raise ManifestError(
-                    "{0}/{1}: run.command uses {{input:{2}}} but this action declares "
-                    "no such input".format(engine.id, act.id, arg)
-                ) from None
+                # Approved 2026-08-27: shared template, heterogeneous actions -
+                # a key this action does not declare behaves like an omitted
+                # optional (whole token dropped, embedded form empty). Keys NO
+                # action declares are still rejected by load_manifest.
+                return _MISSING_OPTIONAL
             if arg not in values or values[arg] is None:
                 if slot.optional:
                     return _MISSING_OPTIONAL

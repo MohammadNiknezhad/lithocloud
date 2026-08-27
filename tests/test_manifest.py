@@ -250,7 +250,8 @@ def test_params_declared_but_never_passed(tmp_path: Path) -> None:
 
 
 def test_one_template_serves_actions_with_different_inputs(tmp_path: Path) -> None:
-    """geohazard has six stages with different inputs and one command template."""
+    """Shared template, heterogeneous actions (approved 2026-08-27): a key the
+    current action does not declare renders as empty instead of erroring."""
     path = write_manifest(
         tmp_path / "e",
         "id: d\nname: N\nversion: \"1.0\"\n"
@@ -261,8 +262,12 @@ def test_one_template_serves_actions_with_different_inputs(tmp_path: Path) -> No
     )
     engine = load_manifest(path)  # loads fine: stage1 declares 'cloud'
 
-    with pytest.raises(ManifestError, match="no such input"):
-        render_command(engine, "stage2", python="py", run_dir="r", inputs={})
+    assert render_command(engine, "stage2", python="py", run_dir="r", inputs={}) == (
+        "py stage2"
+    )
+    assert render_command(
+        engine, "stage1", python="py", run_dir="r", inputs={"cloud": "a.laz"}
+    ) == "py stage1 a.laz"
 
 
 # --------------------------------------------------------------------------- #

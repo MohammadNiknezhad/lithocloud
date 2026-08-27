@@ -176,19 +176,26 @@ def test_missing_params_file_is_an_error(engine) -> None:
         render_argv(engine, "run", python="py", run_dir="r", inputs={"cloud": "a.laz"})
 
 
-def test_input_key_the_action_does_not_declare(tmp_path: Path) -> None:
+def test_input_key_the_action_does_not_declare_is_dropped(tmp_path: Path) -> None:
+    """Shared template, heterogeneous actions (approved 2026-08-27)."""
     path = write_manifest(
         tmp_path / "e",
         'id: d\nname: N\nversion: "1.0"\n'
         "actions:\n"
         "  - {id: one, label: One, inputs: [{key: cloud, type: pointcloud}]}\n"
         "  - {id: two, label: Two, inputs: [{key: table, type: table}]}\n"
-        'run: {command: "run {input:cloud}"}\n',
+        'run: {command: "run {input:cloud} --t={input:table}"}\n',
     )
     engine = load_manifest(path)
 
-    with pytest.raises(ManifestError, match="no such input"):
-        render_argv(engine, "two", python="py", run_dir="r", inputs={})
+    # action 'two': cloud undeclared -> token dropped; its own input embeds
+    assert render_argv(
+        engine, "two", python="py", run_dir="r", inputs={"table": "t.csv"}
+    ) == ["run", "--t=t.csv"]
+    # action 'one': table undeclared -> embedded form goes empty
+    assert render_argv(
+        engine, "one", python="py", run_dir="r", inputs={"cloud": "a.laz"}
+    ) == ["run", "a.laz", "--t="]
 
 
 def test_agrees_with_render_command_when_there_are_no_spaces(engine) -> None:
