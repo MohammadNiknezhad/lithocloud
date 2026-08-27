@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="branding/png/lithocloud-lockup-800.png" alt="LithoCloud" width="420">
+</p>
+
 # LithoCloud
 
 **See into the rock — LiDAR, photogrammetry, machine learning**

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -28,6 +30,15 @@ from PySide6.QtWidgets import (
 from lithocloud.core import Project, ProjectError, create_project, load_project
 
 from . import settings
+
+RESOURCES = Path(__file__).parent / "resources"
+LOCKUP = RESOURCES / "lithocloud-lockup-800.png"
+
+#: Displayed width of the horizontal lockup. BRAND.md keeps the tagline
+#: legible down to 120 px; 260 px sits comfortably above that.
+LOGO_WIDTH = 260
+#: BRAND.md clear space: at least ~28% of the mark's height.
+LOGO_CLEAR_SPACE = 24
 
 
 class StartDialog(QDialog):
@@ -86,9 +97,31 @@ class StartDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
+        logo = self._logo()
+        if logo is not None:
+            layout.addWidget(logo)
         layout.addWidget(create_box)
         layout.addWidget(open_box)
         layout.addWidget(buttons)
+
+    def _logo(self) -> QLabel | None:
+        """The horizontal lockup, or None when the artwork is unavailable."""
+        pixmap = QPixmap(str(LOCKUP))
+        if pixmap.isNull():
+            return None
+
+        ratio = self.devicePixelRatioF()
+        scaled = pixmap.scaledToWidth(
+            round(LOGO_WIDTH * ratio), Qt.TransformationMode.SmoothTransformation
+        )
+        scaled.setDevicePixelRatio(ratio)
+
+        label = QLabel(self)
+        label.setPixmap(scaled)
+        label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        label.setContentsMargins(0, 0, 0, LOGO_CLEAR_SPACE)
+        label.setAccessibleName("LithoCloud")
+        return label
 
     # ------------------------------------------------------------------ #
 

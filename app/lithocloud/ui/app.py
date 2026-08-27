@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from lithocloud.core import ProjectError, load_project
@@ -13,6 +14,11 @@ from lithocloud.core import ProjectError, load_project
 from . import settings
 from .main_window import MainWindow
 from .start_dialog import StartDialog
+
+#: Bundled artwork. Resolved from the module, never the working directory -
+#: lithocloud.bat cds before launching.
+RESOURCES = Path(__file__).parent / "resources"
+APP_ICON = RESOURCES / "lithocloud.ico"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -36,6 +42,9 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication(sys.argv[:1])
     app.setApplicationName("LithoCloud")
     app.setOrganizationName("MohammadNiknezhad")
+    # One call covers the taskbar, the alt-tab switcher and every window -
+    # including StartDialog, since QApplication already exists here.
+    app.setWindowIcon(QIcon(str(APP_ICON)))
     # carry the pre-rename recent projects / folders across, once
     settings.migrate_legacy_settings()
 

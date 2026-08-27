@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import platform
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -26,6 +27,14 @@ from PySide6.QtWidgets import (
 )
 
 from lithocloud import __version__
+
+RESOURCES = Path(__file__).parent / "resources"
+LOCKUP = RESOURCES / "lithocloud-lockup-stacked-1200.png"
+
+#: Displayed width of the lockup. BRAND.md: never below 120 px on screen.
+LOGO_WIDTH = 200
+#: BRAND.md clear space: at least ~28% of the mark's height, nothing inside it.
+LOGO_CLEAR_SPACE = 24
 
 PRODUCT_NAME = "LithoCloud"
 TAGLINE = "See into the rock — LiDAR, photogrammetry, machine learning"
@@ -87,19 +96,51 @@ class AboutDialog(QDialog):
         layout.addWidget(buttons)
 
     def _identity(self) -> list[QWidget]:
-        """The three identity lines. The logo will slot in above these."""
-        name = QLabel(PRODUCT_NAME, self)
-        font = name.font()
-        font.setPointSize(font.pointSize() + 6)
-        font.setBold(True)
-        name.setFont(font)
+        """The lockup above the identity lines.
+
+        The lockup already renders the product name, so the big name label is
+        omitted when it loads - the PRODUCT_NAME text itself is unchanged, and
+        the label returns if the artwork is ever missing.
+        """
+        widgets: list[QWidget] = []
+        logo = self._logo()
+        if logo is not None:
+            widgets.append(logo)
+        else:
+            name = QLabel(PRODUCT_NAME, self)
+            font = name.font()
+            font.setPointSize(font.pointSize() + 6)
+            font.setBold(True)
+            name.setFont(font)
+            widgets.append(name)
 
         tagline = QLabel(TAGLINE, self)
         tagline.setWordWrap(True)
 
         author = QLabel(AUTHOR, self)
         author.setWordWrap(True)
-        return [name, tagline, author]
+        return widgets + [tagline, author]
+
+    def _logo(self) -> QLabel | None:
+        """The stacked lockup, or None when the artwork is unavailable."""
+        pixmap = QPixmap(str(LOCKUP))
+        if pixmap.isNull():
+            return None
+
+        # Scale in device pixels and tag the ratio, so the mark stays crisp on
+        # a HiDPI display instead of being upscaled from 200 logical pixels.
+        ratio = self.devicePixelRatioF()
+        scaled = pixmap.scaledToWidth(
+            round(LOGO_WIDTH * ratio), Qt.TransformationMode.SmoothTransformation
+        )
+        scaled.setDevicePixelRatio(ratio)
+
+        label = QLabel(self)
+        label.setPixmap(scaled)
+        label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        label.setContentsMargins(0, 0, 0, LOGO_CLEAR_SPACE)
+        label.setAccessibleName(PRODUCT_NAME)
+        return label
 
     def _copy_diagnostics(self) -> None:
         QGuiApplication.clipboard().setText(diagnostics())

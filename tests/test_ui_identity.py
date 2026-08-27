@@ -69,13 +69,23 @@ def test_the_identity_block_is_the_approved_wording() -> None:
 
 
 def test_ets_is_plain_text_attribution_only() -> None:
-    """Affiliation, never branding: no logo, no wordmark, no colours."""
+    """BRAND.md: ÉTS never appears inside the mark, only as plain text.
+
+    The dialog now carries the LithoCloud lockup, so this checks the artwork
+    it references is ours and that nothing recolours it - rather than banning
+    images outright, which it did before there was a logo.
+    """
+    import re
+
     source = (REPO_ROOT / "app" / "lithocloud" / "ui" / "about_dialog.py").read_text(
         encoding="utf-8"
     )
-    assert "ÉTS Montréal" in source
-    for forbidden in (".png", ".svg", ".ico", "setStyleSheet", "QPixmap"):
-        assert forbidden not in source
+    assert "ÉTS Montréal" in source            # the attribution line, as text
+    assert "setStyleSheet" not in source       # no recolouring of the mark
+
+    images = re.findall(r"[\w.-]+\.(?:png|svg|ico)", source)
+    assert images == ["lithocloud-lockup-stacked-1200.png"]
+    assert not any("ets" in name.lower() for name in images)
 
 
 def test_the_about_dialog_shows_the_identity_and_version(qtbot) -> None:
@@ -86,7 +96,14 @@ def test_the_about_dialog_shows_the_identity_and_version(qtbot) -> None:
     texts = " ".join(
         child.text() for child in dialog.findChildren(object) if hasattr(child, "text")
     )
-    assert PRODUCT_NAME in texts
+    # The product name is carried by the lockup artwork, which exposes it as an
+    # accessible name; it falls back to a text label if the artwork is missing.
+    from PySide6.QtWidgets import QLabel
+
+    identity = texts + " " + " ".join(
+        label.accessibleName() for label in dialog.findChildren(QLabel)
+    )
+    assert PRODUCT_NAME in identity
     assert TAGLINE in texts
     assert AUTHOR in texts
     assert lithocloud.__version__ in texts
@@ -214,3 +231,126 @@ def test_the_license_names_the_person() -> None:
     assert "Copyright (c) 2026 Mohammad Niknezhad" in (
         REPO_ROOT / "LICENSE"
     ).read_text(encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- #
+# Branding resources (wired in 2026-08-27)
+# --------------------------------------------------------------------------- #
+
+RESOURCES = REPO_ROOT / "app" / "lithocloud" / "ui" / "resources"
+
+
+def test_the_resource_files_ship_with_the_package() -> None:
+    """Resolved from the module, so they must live beside it - lithocloud.bat
+    cds before launching and a cwd-relative path would break."""
+    for name in (
+        "lithocloud.ico",
+        "lithocloud-lockup-stacked-1200.png",
+        "lithocloud-lockup-800.png",
+    ):
+        path = RESOURCES / name
+        assert path.is_file(), name
+        assert path.stat().st_size > 0, name
+
+
+def test_the_copied_artwork_is_byte_identical_to_branding() -> None:
+    """Nothing about the artwork is altered - the copies are verbatim."""
+    pairs = [
+        ("lithocloud.ico", REPO_ROOT / "branding" / "ico" / "lithocloud.ico"),
+        (
+            "lithocloud-lockup-stacked-1200.png",
+            REPO_ROOT / "branding" / "png" / "lithocloud-lockup-stacked-1200.png",
+        ),
+        (
+            "lithocloud-lockup-800.png",
+            REPO_ROOT / "branding" / "png" / "lithocloud-lockup-800.png",
+        ),
+    ]
+    for name, source in pairs:
+        assert (RESOURCES / name).read_bytes() == source.read_bytes(), name
+
+
+def test_the_app_icon_loads_with_every_frame(qtbot) -> None:
+    from PySide6.QtGui import QIcon
+
+    from lithocloud.ui.app import APP_ICON
+
+    assert APP_ICON.is_file()
+    icon = QIcon(str(APP_ICON))
+    assert not icon.isNull()
+
+    sizes = {s.width() for s in icon.availableSizes()}
+    # BRAND.md: the ico carries both cuts, 16 through 256
+    assert {16, 20, 24, 32, 48, 64, 128, 256} <= sizes
+
+
+def test_the_about_lockup_loads(qtbot) -> None:
+    from PySide6.QtGui import QPixmap
+
+    from lithocloud.ui.about_dialog import LOCKUP
+
+    pixmap = QPixmap(str(LOCKUP))
+    assert not pixmap.isNull()
+    assert pixmap.width() > 0 and pixmap.height() > 0
+
+
+def test_the_start_dialog_lockup_loads(qtbot) -> None:
+    from PySide6.QtGui import QPixmap
+
+    from lithocloud.ui.start_dialog import LOCKUP
+
+    pixmap = QPixmap(str(LOCKUP))
+    assert not pixmap.isNull()
+
+
+def test_displayed_widths_respect_the_brand_minimum() -> None:
+    """BRAND.md: a lockup is never shown below 120 px wide on screen."""
+    from lithocloud.ui import about_dialog, start_dialog
+
+    assert about_dialog.LOGO_WIDTH >= 120
+    assert start_dialog.LOGO_WIDTH >= 120
+    assert about_dialog.LOGO_CLEAR_SPACE > 0
+    assert start_dialog.LOGO_CLEAR_SPACE > 0
+
+
+def test_the_about_dialog_shows_the_lockup_instead_of_the_name_label(qtbot) -> None:
+    """The lockup already renders the product name, so the big heading is
+    omitted - but PRODUCT_NAME itself is untouched."""
+    from PySide6.QtWidgets import QLabel
+
+    dialog = AboutDialog()
+    qtbot.addWidget(dialog)
+
+    pixmaps = [
+        label for label in dialog.findChildren(QLabel) if label.pixmap() is not None
+        and not label.pixmap().isNull()
+    ]
+    assert pixmaps, "the About dialog shows no logo"
+    assert pixmaps[0].accessibleName() == PRODUCT_NAME
+
+    texts = [label.text() for label in dialog.findChildren(QLabel)]
+    assert PRODUCT_NAME not in texts        # not repeated beneath the artwork
+    assert TAGLINE in texts                 # tagline and author still shown
+    assert AUTHOR in texts
+    assert PRODUCT_NAME == "LithoCloud"     # the constant is unchanged
+
+
+def test_the_start_dialog_shows_the_lockup(qtbot) -> None:
+    from PySide6.QtWidgets import QLabel
+
+    from lithocloud.ui.start_dialog import StartDialog
+
+    dialog = StartDialog()
+    qtbot.addWidget(dialog)
+
+    pixmaps = [
+        label for label in dialog.findChildren(QLabel) if label.pixmap() is not None
+        and not label.pixmap().isNull()
+    ]
+    assert pixmaps, "the start dialog shows no logo"
+
+
+def test_the_readme_shows_the_lockup() -> None:
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    assert "branding/png/lithocloud-lockup-800.png" in readme
+    assert (REPO_ROOT / "branding" / "png" / "lithocloud-lockup-800.png").is_file()
