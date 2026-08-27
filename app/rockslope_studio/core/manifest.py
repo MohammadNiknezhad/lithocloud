@@ -44,6 +44,7 @@ __all__ = [
     "discover_engines",
     "find_engines",
     "load_manifest",
+    "render_argv",
     "render_command",
 ]
 
@@ -555,3 +556,106 @@ def render_command(
         )
 
     return PLACEHOLDER_RE.sub(replace, engine.run.command).strip()
+
+
+def render_argv(
+    engine: Engine,
+    action: "Action | str",
+    *,
+    python: PathLike,
+    run_dir: PathLike,
+    params_file: PathLike | None = None,
+    inputs: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Fill ``run.command`` as an **argument list** - the form to execute.
+
+    Added in session 2 (approved 2026-08-27): a path containing spaces must
+    survive as ONE argument on Windows, so execution never goes through a
+    single command string. The template is split on whitespace first, then each
+    token has its placeholders substituted:
+
+    * a token that is exactly one placeholder becomes one argument - or, for a
+      ``multiple`` input, one argument **per file**;
+    * a token that is exactly an omitted ``optional`` input is dropped
+      (prefer ``--mask={input:mask}`` style for optionals so no dangling flag
+      is left behind);
+    * inside a larger token (``--out={run_dir}``) the value is substituted
+      in place; a multi-valued input embedded like that has no unambiguous
+      argv form and raises :class:`ManifestError`.
+
+    Same error behaviour as :func:`render_command` (which remains the
+    display/logging form): missing required input, missing params file, or an
+    ``{input:<key>}`` the action does not declare all raise
+    :class:`ManifestError`.
+    """
+    act = engine.action(action) if isinstance(action, str) else action
+    values: dict[str, Any] = dict(inputs or {})
+
+    _MISSING_OPTIONAL = object()
+
+    def fill(match: "re.Match[str]", *, whole_token: bool) -> Any:
+        name, arg = match.group(1), match.group(2)
+        if name == "python":
+            return str(python)
+        if name == "action":
+            return act.id
+        if name == "run_dir":
+            return str(run_dir)
+        if name == "params_file":
+            if params_file is None:
+                raise ManifestError(
+                    "{0}/{1}: run.command uses {{params_file}} but no params file was "
+                    "given".format(engine.id, act.id)
+                )
+            return str(params_file)
+        if name == "input":
+            try:
+                slot = act.input(arg)
+            except KeyError:
+                raise ManifestError(
+                    "{0}/{1}: run.command uses {{input:{2}}} but this action declares "
+                    "no such input".format(engine.id, act.id, arg)
+                ) from None
+            if arg not in values or values[arg] is None:
+                if slot.optional:
+                    return _MISSING_OPTIONAL
+                raise ManifestError(
+                    "{0}/{1}: missing input {2!r}".format(engine.id, act.id, arg)
+                )
+            value = values[arg]
+            if isinstance(value, (str, Path)):
+                return str(value)
+            if isinstance(value, Sequence):
+                items = [str(item) for item in value]
+                if not whole_token and len(items) != 1:
+                    raise ManifestError(
+                        "{0}/{1}: multi-valued input {2!r} cannot be embedded inside "
+                        "a larger argument - give {{input:{2}}} its own token".format(
+                            engine.id, act.id, arg
+                        )
+                    )
+                return items if whole_token else items[0]
+            return str(value)
+        raise ManifestError(
+            "{0}/{1}: unknown placeholder {2!r}".format(engine.id, act.id, match.group(0))
+        )
+
+    argv: list[str] = []
+    for token in engine.run.command.split():
+        match = PLACEHOLDER_RE.fullmatch(token)
+        if match is not None:
+            value = fill(match, whole_token=True)
+            if value is _MISSING_OPTIONAL:
+                continue
+            if isinstance(value, list):
+                argv.extend(value)
+            else:
+                argv.append(value)
+            continue
+
+        def replace(m: "re.Match[str]") -> str:
+            value = fill(m, whole_token=False)
+            return "" if value is _MISSING_OPTIONAL else value
+
+        argv.append(PLACEHOLDER_RE.sub(replace, token))
+    return argv

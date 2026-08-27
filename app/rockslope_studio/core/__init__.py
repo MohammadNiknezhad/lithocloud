@@ -31,6 +31,7 @@ from .manifest import (
     discover_engines,
     find_engines,
     load_manifest,
+    render_argv,
     render_command,
 )
 from .params import (
@@ -68,6 +69,7 @@ __all__ = [
     "discover_engines",
     "find_engines",
     "load_manifest",
+    "render_argv",
     "render_command",
     # params
     "FIELD_TYPES",
