@@ -2,42 +2,50 @@
   "version": 1,
   "fields": [
     {
-      "key": "ci",
-      "label": "Confidence interval (%)",
-      "type": "float",
-      "default": 95.0,
-      "help": "Confidence interval % for CT and reg_CI (ricp DEFAULT_CI)."
-    },
-    {
-      "key": "max_levels",
-      "label": "Max R-ICP levels",
-      "type": "int",
-      "default": 20,
-      "min": 1,
-      "help": "Max R-ICP filter levels (ricp DEFAULT_MAX_LEVELS)."
-    },
-    {
-      "key": "target_points",
-      "label": "Target points per cloud",
-      "type": "str",
-      "default": "300000",
-      "help": "Registration subsample size per cloud (count-based), or 'auto' for SPACING-DRIVEN: the same registration spacing (~2x the coarser native) is requested for both clouds, verified, and hard-capped at 1.5M pts. Minimum 2000."
-    },
-    {
-      "key": "icp_max_iter",
-      "label": "ICP max iterations",
-      "type": "int",
-      "default": 60,
-      "min": 1,
-      "help": "Max inner ICP iterations per level (ricp DEFAULT_ICP_MAX_ITER)."
-    },
-    {
-      "key": "icp_method",
-      "label": "ICP variant",
+      "key": "fine_method",
+      "label": "Fine method",
       "type": "choice",
-      "default": "plane",
-      "choices": ["plane", "point"],
-      "help": "point-to-plane (tighter on terrain) or classic point-to-point."
+      "default": "all",
+      "choices": ["paper-c2c", "local-plane", "m3c2", "all"],
+      "help": "Which fine registration method(s) to run. 'all' runs the three and compares them; the studio registers the RECOMMENDED one. Pick a single method to force it (e.g. after an undecided comparison)."
+    },
+    {
+      "key": "stability_seeds",
+      "label": "Stability seeds",
+      "type": "str",
+      "default": "0,1,2",
+      "help": "Comma-separated non-negative integers; each seed is one extra subsampling draw for the method-specific registration uncertainty. The default 0,1,2 is provisional - use 0,1,2,3,4,5,6,7,8,9 for a final run. Empty = stability analysis off."
+    },
+    {
+      "key": "seed",
+      "label": "Seed",
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "help": "Subsampling RNG seed for the main run."
+    },
+    {
+      "key": "reference_precision_mm",
+      "label": "Reference precision (mm, 1-sigma)",
+      "type": "float",
+      "default": 0.0,
+      "min": 0.0,
+      "help": "Calibrated one-sigma sensor/control precision of the REFERENCE cloud, in mm. NOT point spacing, NOT the C2C mean, NOT registration error. Leave 0 if unknown - the report will then say the survey-level LoD statement is incomplete."
+    },
+    {
+      "key": "align_precision_mm",
+      "label": "Align precision (mm, 1-sigma)",
+      "type": "float",
+      "default": 0.0,
+      "min": 0.0,
+      "help": "Calibrated one-sigma sensor/control precision of the ALIGN cloud, in mm. NOT point spacing, NOT the C2C mean, NOT registration error. Leave 0 if unknown - the report will then say the survey-level LoD statement is incomplete."
+    },
+    {
+      "key": "registration_uncertainty_mm",
+      "label": "Registration uncertainty override (mm)",
+      "type": "str",
+      "default": "",
+      "help": "Override the method-specific registration uncertainty used by M3C2, in mm. Empty = let the engine estimate it (recommended)."
     },
     {
       "key": "coarse_mode",
@@ -45,98 +53,92 @@
       "type": "choice",
       "default": "auto",
       "choices": ["auto", "gui", "none"],
-      "help": "auto = SCENE-style top-view correlation (no user interaction, but falls back to the GUI if placement quality is poor); gui = manual pick + nudge tool; none = clouds already roughly placed. IGNORED by the 'register' action, which always uses the supplied coarse transform."
+      "help": "auto = SCENE-style top-view correlation; gui = manual pick + nudge tool (opens the engine's own window); none = clouds already roughly placed. Ignored when a coarse transform artifact is supplied."
     },
     {
-      "key": "coarse",
+      "key": "coarse_review",
+      "label": "Coarse review checkpoint",
+      "type": "choice",
+      "default": "never",
+      "choices": ["always", "if-poor", "never"],
+      "help": "When the engine pauses to show the coarse overlays in its own Tk window. Keep 'never' in the studio (ENGINE_GUIDE section 4): a poor placement then stops safely and leaves coarse_overlay_top/side.png in the run folder for you to inspect."
+    },
+    {
+      "key": "accept_poor_coarse",
+      "label": "Accept a poor coarse placement",
+      "type": "bool",
+      "default": false,
+      "help": "Continue into fine registration even when the automatic coarse placement scored poorly. Tick ONLY after you have inspected the saved overlays."
+    },
+    {
+      "key": "coarse_parameters",
       "label": "Quick coarse 'tx ty tz yaw_deg'",
       "type": "str",
       "default": "",
-      "help": "Quick coarse transform as four numbers (overrides coarse mode). Empty = not passed."
+      "help": "Four numbers giving a quick coarse transform. Empty = not used. Cannot be combined with a coarse transform artifact."
     },
     {
-      "key": "coarse_cell",
-      "label": "Coarse grid cell (m)",
+      "key": "fit_tilt",
+      "label": "Fit tilt after coarse placement",
+      "type": "bool",
+      "default": true,
+      "help": "DEM-difference roll/pitch estimation after the coarse placement (engine default on)."
+    },
+    {
+      "key": "target_points",
+      "label": "Target points per cloud",
+      "type": "str",
+      "default": "auto",
+      "help": "'auto' (spacing-driven) or a whole number >= 2000. Cannot exceed the max registration points."
+    },
+    {
+      "key": "max_registration_points",
+      "label": "Max registration points",
       "type": "str",
       "default": "",
-      "help": "Top-view grid cell size in metres for auto coarse. Empty = automatic (ricp default None)."
+      "help": "Hard cap on registration subsample size per cloud. Empty = the installed ricp's own default (1,500,000 in ricp-engine 0.2.0), so this never drifts from the engine."
     },
     {
-      "key": "no_tilt_fit",
-      "label": "Skip tilt fit",
-      "type": "bool",
-      "default": false,
-      "help": "Skip the DEM-difference roll/pitch estimation that runs after coarse placement."
+      "key": "max_evaluation_points",
+      "label": "Max evaluation points",
+      "type": "str",
+      "default": "",
+      "help": "Hard cap on points used for quality evaluation. Empty = the installed ricp's own default (500,000 in ricp-engine 0.2.0), so this never drifts from the engine."
     },
     {
-      "key": "max_tilt",
-      "label": "Max tilt (deg)",
-      "type": "float",
-      "default": 10.0,
-      "help": "Sanity bound in degrees for the tilt fit (the fit self-validates; this only rejects the physically absurd)."
+      "key": "dense_report_points",
+      "label": "Dense report points",
+      "type": "str",
+      "default": "auto",
+      "help": "'auto', 'off', or a whole number >= 100: points in the dense spatial-residual report."
     },
     {
       "key": "overlap",
-      "label": "Overlap crop radius",
+      "label": "Overlap crop radius (m)",
       "type": "str",
       "default": "auto",
-      "help": "Common-overlap crop radius in metres after coarse placement: 'auto' = 10x point spacing, 'off' = disable, or a number."
+      "help": "Common-overlap crop after coarse placement: 'auto', 'off', or a positive number in metres."
     },
     {
-      "key": "equivalence_margin",
-      "label": "Equivalence margin (m)",
+      "key": "report_thresholds_mm",
+      "label": "Report thresholds (mm)",
       "type": "str",
       "default": "auto",
-      "help": "Practical-equivalence margin in metres for level selection, look-ahead and polish acceptance; 'auto' = max(2.5% of the best held-out J, 2 mm). Set from your application tolerance when one exists."
+      "help": "Distance thresholds used in the reports, as the engine expects them; 'auto' = engine default."
     },
     {
-      "key": "sigma_floor",
-      "label": "Sigma floor (m)",
-      "type": "float",
-      "default": 0.02,
-      "help": "Floor in metres for the robust ICP residual scale (~2x sensor noise; sensor-dependent). Must be > 0."
+      "key": "comparison_equivalence_mm",
+      "label": "Comparison equivalence margin (mm)",
+      "type": "str",
+      "default": "auto",
+      "help": "Margin within which two methods count as equivalent in the method comparison: 'auto' or a number in mm."
     },
     {
-      "key": "no_polish",
-      "label": "Skip polish pass",
-      "type": "bool",
-      "default": false,
-      "help": "Skip the final high-density polish ICP pass."
-    },
-    {
-      "key": "validate_swap",
-      "label": "Validate swap (reverse run)",
-      "type": "bool",
-      "default": false,
-      "help": "Also register in the reverse direction and report the composition error - a directional-bias diagnostic. Roughly doubles runtime."
-    },
-    {
-      "key": "swap_max_levels",
-      "label": "Swap max levels",
+      "key": "extra_arguments",
+      "label": "Extra engine arguments",
       "type": "str",
       "default": "",
-      "help": "Level budget for the reverse (swap) validation. Empty = same as max levels, so the diagnostic is strictly symmetric."
-    },
-    {
-      "key": "cycle_tolerance",
-      "label": "Cycle tolerance (m)",
-      "type": "str",
-      "default": "",
-      "help": "Cycle-consistency tolerance in metres for validate-swap. Empty = auto (0.5x the common registration spacing)."
-    },
-    {
-      "key": "cycle_experiment",
-      "label": "Cycle experiment",
-      "type": "bool",
-      "default": false,
-      "help": "DECISIVE directional diagnostic (replaces the plain swap): one frozen common-overlap mask at the final pose, density parity enforced, then forward and reverse on exactly the same two subsets. Roughly doubles runtime."
-    },
-    {
-      "key": "seed",
-      "label": "Random seed",
-      "type": "int",
-      "default": 0,
-      "help": "Subsampling RNG seed."
+      "help": "Advanced: additional ricp.py command-line arguments, space-separated, passed through unchanged. Empty = none."
     }
   ]
 }

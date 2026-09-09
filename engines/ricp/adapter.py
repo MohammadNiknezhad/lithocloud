@@ -1,33 +1,32 @@
-"""ricp adapter - the thin wrapper the studio actually runs.
+"""ricp adapter v2 - a translator around ``ricp_engine`` (ricp-engine 0.2.0).
 
-    python adapter.py <action> --params <params.json> --out <run_dir>
+    python adapter.py register --params <params.json> --out <run_dir>
                       --reference=F --align=F [--coarse-artifact=F]
 
-Actions
--------
-register / register_gui
-    Build a ricp.py argument list and call ``ricp.main()`` in-process. This is
-    the wrap-as-is path: ricp decides everything, exactly as today.
+Studio params in, ``RegistrationConfig`` out, ``outputs.json`` back. No
+science lives here: the engine is imported from the editable install of
+``../ricp/ricp`` (``pip install -e .``), exactly as ENGINE_GUIDE section 2
+describes. Nothing inside ``../ricp`` is touched.
 
-coarse
-    Standalone coarse alignment. ricp.py has NO --coarse-only flag, so this
-    action RE-COMPOSES the code path main() runs up to the point where it
-    writes transform_coarse.txt - see _coarse_only() below. Approved by
-    Mohammad on 2026-08-27 after the risk was put to him in writing.
+What happens, in order:
 
-    The rule for that function: call ricp's OWN functions, with ricp's OWN
-    arguments, in ricp's OWN order. Nothing is reimplemented, re-tuned or
-    reordered - in particular the RNG is drawn in the same sequence, so the
-    subsampling is identical. tests/test_ricp_adapter.py contains an
-    EQUIVALENCE test (architecture section 11) that runs the real ricp.py on a
-    generated cloud and asserts this function reproduces its
-    transform_coarse.txt exactly.
-
-LAZ inputs are auto-converted to uncompressed .las inside the run folder
-(decided 2026-08-27): ricp cannot read .laz by design. The converted copy is
-what ricp sees, and it stays in the run folder as part of the record.
-
-Stdlib + laspy (already an engine dependency) only.
+1. read params and input paths; a ``.laz`` input is decompressed to ``.las``
+   in the run folder (``RegistrationConfig.validate`` rejects LAZ by design);
+2. build ``RegistrationConfig(output_directory=<run_dir>, ...)`` - one field
+   per params entry, every default the engine's own;
+3. ``run_registration(config, on_progress=...)`` streams each line to the
+   real stdout so the studio's log panel shows progress live;
+4. ``ricp_result.json`` = ``result.as_dict()`` is written whenever the run got
+   far enough to create its ``run_...`` folder - success or failure - as the
+   complete record a future viewer panel will read (decided 2026-09-09);
+5. failure: ``adapter_error.txt`` carries ``error_message`` and, when they
+   exist, the coarse overlay paths, so the operator knows what to inspect
+   before rerunning with a reviewed matrix; the engine's exit code is
+   returned;
+6. success: ``outputs.json`` registers the RECOMMENDED method (or the single
+   method when only one ran) plus the reports. When several ran and the
+   comparison was not decisive, only the reports register - the adapter never
+   picks a method the evidence did not (decided 2026-09-09).
 """
 
 from __future__ import annotations
@@ -36,43 +35,46 @@ import argparse
 import json
 import sys
 from pathlib import Path
-
-#: engines/ricp/adapter.py -> Projects/ricp/ricp  (sibling repo, read-only)
-RICP_REPO = Path(__file__).resolve().parents[3] / "ricp" / "ricp"
+from typing import Any
 
 OUTPUTS_NAME = "outputs.json"
 ERROR_NAME = "adapter_error.txt"
+RESULT_NAME = "ricp_result.json"
 
-ACTIONS = ("coarse", "register", "register_gui")
+ACTIONS = ("register",)
 
-#: ricp reads these; .laz is explicitly unsupported and gets converted.
+#: What ricp_engine.validate() accepts; a test pins this to
+#: ricp_engine.SUPPORTED_INPUT_SUFFIXES. ``.laz`` is converted, never passed.
 RICP_READABLE = (".las", ".txt", ".xyz", ".csv", ".pts", ".asc")
+
+#: Keys of result.artifacts that are figures. Anything else there is JSON/CSV.
+_ARTIFACT_PLOT_KEYS = ("coarse_overlay_top", "coarse_overlay_side")
 
 
 class AdapterError(ValueError):
-    """Bad parameter combination - reported before ricp is invoked."""
+    """Bad parameter combination - reported before the engine is invoked."""
 
 
-def _write_error_file(run_dir: "str | Path", error: Exception) -> None:
-    """Persist an early failure so it survives a closed console window."""
+def _write_error_file(run_dir: "str | Path", lines: "str | list[str]") -> None:
+    """Persist a failure so it survives the log panel being cleared."""
+    text = lines if isinstance(lines, str) else "\n".join(lines)
     try:
         Path(run_dir).mkdir(parents=True, exist_ok=True)
-        (Path(run_dir) / ERROR_NAME).write_text(
-            "ERROR: {0}\n".format(error), encoding="utf-8"
-        )
+        (Path(run_dir) / ERROR_NAME).write_text(text.rstrip() + "\n", encoding="utf-8")
     except OSError:
         pass
 
 
-def _import_ricp():
-    """Import ricp.py from the sibling repo (no pip install, no edits)."""
-    if not (RICP_REPO / "ricp.py").is_file():
-        raise AdapterError("ricp repo not found at {0}".format(RICP_REPO))
-    if str(RICP_REPO) not in sys.path:
-        sys.path.insert(0, str(RICP_REPO))
-    import ricp  # noqa: PLC0415 - deliberately late, after sys.path is set
-
-    return ricp
+def _engine():
+    """The installed ricp_engine module (imported late so tests can stub it)."""
+    try:
+        import ricp_engine  # noqa: PLC0415
+    except ImportError as exc:
+        raise AdapterError(
+            "ricp_engine is not importable - run 'pip install -e .' in "
+            "../ricp/ricp inside the rockslope env (ENGINE_GUIDE section 2): {0}".format(exc)
+        ) from None
+    return ricp_engine
 
 
 # --------------------------------------------------------------------------- #
@@ -81,7 +83,7 @@ def _import_ricp():
 
 
 def prepare_input(path: str, run_dir: Path, *, what: str) -> str:
-    """Return a path ricp can read, converting .laz to .las if needed."""
+    """Return a path the engine can read, converting .laz to .las if needed."""
     if not path:
         raise AdapterError("{0}: no cloud chosen".format(what))
     source = Path(path)
@@ -92,7 +94,7 @@ def prepare_input(path: str, run_dir: Path, *, what: str) -> str:
 
     if suffix == ".laz":
         try:
-            import laspy
+            import laspy  # noqa: PLC0415
         except ImportError:
             raise AdapterError(
                 "{0}: {1} is LAZ, which ricp cannot read, and laspy is not "
@@ -121,321 +123,267 @@ def prepare_input(path: str, run_dir: Path, *, what: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# ricp.py argv  (pure - unit-tested with no data)
+# params -> RegistrationConfig keyword arguments      (pure, unit-tested)
 # --------------------------------------------------------------------------- #
 
 
-def build_cli_argv(
-    action: str,
+def _text(params: dict, key: str) -> str:
+    return str(params.get(key, "")).strip()
+
+
+def _int_or_literal(text: str, literals: tuple[str, ...], *, what: str):
+    if text in literals:
+        return text
+    try:
+        return int(text)
+    except ValueError:
+        raise AdapterError(
+            "{0}: expected {1} or a whole number, got {2!r}".format(
+                what, " / ".join(repr(x) for x in literals), text
+            )
+        ) from None
+
+
+def _float_or_literal(text: str, literals: tuple[str, ...], *, what: str):
+    if text in literals:
+        return text
+    try:
+        return float(text)
+    except ValueError:
+        raise AdapterError(
+            "{0}: expected {1} or a number, got {2!r}".format(
+                what, " / ".join(repr(x) for x in literals), text
+            )
+        ) from None
+
+
+def _seeds(text: str) -> tuple[int, ...]:
+    """'0,1,2' -> (0, 1, 2); '' -> () which the engine maps to 'off'."""
+    if not text:
+        return ()
+    out: list[int] = []
+    for item in text.replace(";", ",").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            out.append(int(item))
+        except ValueError:
+            raise AdapterError(
+                "stability_seeds: {0!r} is not a whole number".format(item)
+            ) from None
+    return tuple(out)
+
+
+def _coarse_parameters(text: str) -> "tuple[float, float, float, float] | None":
+    if not text:
+        return None
+    items = text.replace(",", " ").split()
+    if len(items) != 4:
+        raise AdapterError(
+            "coarse_parameters: need four numbers 'tx ty tz yaw_deg', got {0!r}".format(text)
+        )
+    try:
+        values = tuple(float(item) for item in items)
+    except ValueError:
+        raise AdapterError(
+            "coarse_parameters: {0!r} contains a non-number".format(text)
+        ) from None
+    return values  # type: ignore[return-value]
+
+
+def build_config_kwargs(
     params: dict,
     reference: str,
     align: str,
     run_dir: "str | Path",
     coarse_matrix: "str | None" = None,
-) -> list[str]:
-    """The ricp.py argv for one full-registration run."""
-    run_dir = Path(run_dir)
-    p = dict(params)
-    argv = [reference, align, "-o", str(run_dir)]
+) -> dict[str, Any]:
+    """Keyword arguments for ``RegistrationConfig`` - one per params field.
 
-    def always(flag: str, value) -> None:
-        argv.extend([flag, str(value)])
-
-    def flag(name: str, on: bool) -> None:
-        if on:
-            argv.append(name)
-
-    always("--ci", p["ci"])
-    always("--max-levels", p["max_levels"])
-    always("--target-points", _target_points(p["target_points"]))
-    always("--icp-max-iter", p["icp_max_iter"])
-    always("--icp-method", p["icp_method"])
-
-    if action == "register":
-        # The coarse artifact is mandatory for this action; supplying the
-        # matrix also removes every interactive fallback inside ricp.
-        if not coarse_matrix:
-            raise AdapterError(
-                "register: a coarse transform artifact is required "
-                "(use the 'coarse' action first, or run register_gui)"
-            )
-        always("--coarse-matrix", coarse_matrix)
-    else:
-        always("--coarse-mode", p["coarse_mode"])
-        if str(p.get("coarse", "")).strip():
-            always("--coarse", _coarse_quad(p["coarse"]))
-        if str(p.get("coarse_cell", "")).strip():
-            always("--coarse-cell", _number(p["coarse_cell"], what="coarse_cell"))
-
-    flag("--no-tilt-fit", p.get("no_tilt_fit", False))
-    always("--max-tilt", p["max_tilt"])
-    always("--overlap", _overlap(p["overlap"]))
-    always("--equivalence-margin", _equivalence_margin(p["equivalence_margin"]))
-    always("--sigma-floor", _positive(p["sigma_floor"], what="sigma_floor"))
-    flag("--no-polish", p.get("no_polish", False))
-    flag("--validate-swap", p.get("validate_swap", False))
-    if str(p.get("swap_max_levels", "")).strip():
-        always("--swap-max-levels", _positive_int(p["swap_max_levels"], what="swap_max_levels"))
-    if str(p.get("cycle_tolerance", "")).strip():
-        always("--cycle-tolerance", _positive(p["cycle_tolerance"], what="cycle_tolerance"))
-    flag("--cycle-experiment", p.get("cycle_experiment", False))
-    always("--seed", p["seed"])
-    return argv
-
-
-# -- small validators (mirror ricp's own p.error() checks) ------------------ #
-
-MIN_POINTS_AFTER_FILTER = 2_000  # ricp constant, checked here for a clear message
-
-
-def _number(text, *, what: str) -> str:
-    try:
-        float(text)
-    except (TypeError, ValueError):
-        raise AdapterError("{0}: {1!r} is not a number".format(what, text)) from None
-    return str(text)
-
-
-def _positive(text, *, what: str) -> str:
-    value = _number(text, what=what)
-    if float(value) <= 0:
-        raise AdapterError("{0}: must be > 0, got {1}".format(what, value))
-    return value
-
-
-def _positive_int(text, *, what: str) -> str:
-    try:
-        value = int(str(text).strip())
-    except ValueError:
-        raise AdapterError("{0}: {1!r} is not a whole number".format(what, text)) from None
-    if value < 1:
-        raise AdapterError("{0}: must be >= 1, got {1}".format(what, value))
-    return str(value)
-
-
-def _target_points(text) -> str:
-    raw = str(text).strip()
-    if raw == "auto":
-        return raw
-    try:
-        value = int(raw)
-    except ValueError:
-        raise AdapterError(
-            "target_points: must be a whole number or 'auto', got {0!r}".format(text)
-        ) from None
-    if value < MIN_POINTS_AFTER_FILTER:
-        raise AdapterError(
-            "target_points: must be >= {0}, got {1}".format(MIN_POINTS_AFTER_FILTER, value)
-        )
-    return str(value)
-
-
-def _overlap(text) -> str:
-    raw = str(text).strip()
-    if raw in ("auto", "off"):
-        return raw
-    return _number(raw, what="overlap")
-
-
-def _equivalence_margin(text) -> str:
-    raw = str(text).strip()
-    if raw == "auto":
-        return raw
-    value = _number(raw, what="equivalence_margin")
-    if float(value) < 0:
-        raise AdapterError("equivalence_margin: must be >= 0 or 'auto'")
-    return value
-
-
-def _coarse_quad(text) -> str:
-    items = str(text).split()
-    if len(items) != 4:
-        raise AdapterError(
-            "coarse: need four numbers 'tx ty tz yaw_deg', got {0!r}".format(text)
-        )
-    for item in items:
-        _number(item, what="coarse")
-    return " ".join(items)
-
-
-# --------------------------------------------------------------------------- #
-# The re-composed coarse-only path
-# --------------------------------------------------------------------------- #
-
-
-def _coarse_only(ricp, params: dict, reference: str, align: str, run_dir: Path) -> Path:
-    """Mirror of ricp.main() from its start to transform_coarse.txt.
-
-    Line-for-line correspondence with ricp.py (v as of 2026-08-27):
-      main() 2306-2318  rng, load_cloud x2, make_run_dir
-      main() 2324-2325  native_spacing x2      <- same RNG order, so the
-      main() 2329-2398  the target_points branch   subsampling is identical
-      main() 2411-2444  the coarse branch
-      main() 2446-2458  tilt fit + savetxt
-
-    NOTHING here is reimplemented: every computation is a call into ricp.
-    Returns the path of the written transform_coarse.txt.
+    Every field is passed explicitly EXCEPT ``max_registration_points`` /
+    ``max_evaluation_points``: an empty value omits the keyword so the
+    installed engine's own default applies and can never drift (decided
+    2026-09-09). ``output_directory`` is the studio run folder; ``coarse_matrix``
+    comes from the optional transform input, not the form.
     """
-    import numpy as np
-
     p = dict(params)
-    seed = int(p["seed"])
-    target_points = _target_points(p["target_points"])
 
-    rng = np.random.default_rng(seed)
-
-    print("Loading reference: {0}".format(reference), flush=True)
-    ref = ricp.load_cloud(reference)
-    print("  {0:,} points".format(ref.n), flush=True)
-    print("Loading align:     {0}".format(align), flush=True)
-    ali = ricp.load_cloud(align)
-    print("  {0:,} points".format(ali.n), flush=True)
-
-    out = Path(ricp.make_run_dir(str(run_dir)))
-    print("Run folder: {0}".format(out), flush=True)
-
-    s_nat_ref = ricp.native_spacing(ref.xyz, rng)
-    s_nat_ali = ricp.native_spacing(ali.xyz, rng)
-    print(
-        "Data profile: approx. native spacing ref ~{0:.3f} m, align ~{1:.3f} m".format(
-            s_nat_ref, s_nat_ali
-        ),
-        flush=True,
-    )
-
-    if target_points == "auto":
-        target_s = 2.0 * max(s_nat_ref, s_nat_ali)
-        ref_sub, s_ref_act = ricp.subsample_to_spacing(ref.xyz, target_s)
-        ali_sub, s_ali_act = ricp.subsample_to_spacing(ali.xyz, target_s)
-        ref_sub, ali_sub, s_ref_act, s_ali_act, _parity_ok, _tries = ricp.density_parity(
-            ref.xyz, ali.xyz, ref_sub, ali_sub, s_ref_act, s_ali_act
+    coarse_parameters = _coarse_parameters(_text(p, "coarse_parameters"))
+    if coarse_matrix and coarse_parameters is not None:
+        raise AdapterError(
+            "choose a coarse transform artifact OR 'coarse_parameters', not both"
         )
-        ref_sub_spacing = s_ref_act
-    else:
-        count = int(target_points)
-        ref_sub = ricp.voxel_downsample(ref.xyz, count, rng)
-        ali_sub = ricp.voxel_downsample(ali.xyz, count, rng)
-        ref_sub_spacing = ricp.estimate_spacing(ref_sub)
-    print(
-        "  reference: {0:,} pts   align: {1:,} pts".format(len(ref_sub), len(ali_sub)),
-        flush=True,
-    )
 
-    # ---- coarse (mirrors main() 2411-2444) --------------------------------
-    mode = p["coarse_mode"]
-    if str(p.get("coarse", "")).strip():
-        T_coarse = ricp.parse_coarse_arg(_coarse_quad(p["coarse"]))
-        print("Coarse transform from --coarse parameters.", flush=True)
-    elif mode == "none":
-        T_coarse = np.eye(4)
-        print("Coarse step skipped.", flush=True)
-    elif mode == "auto":
-        cell = p.get("coarse_cell", "")
-        cell_value = float(_number(cell, what="coarse_cell")) if str(cell).strip() else None
-        print("Automatic coarse registration (SCENE top-view logic):", flush=True)
-        T_coarse, quality = ricp.auto_coarse_topview(ref_sub, ali_sub, cell=cell_value)
-        if quality > ricp.AUTO_COARSE_QUALITY_LIMIT:
-            print(
-                "  WARNING: placement quality is poor ({0:.1f} x point spacing).\n"
-                "  Falling back to the manual GUI so you can check/fix it "
-                "(close with Enter to accept, Esc to abort).".format(quality),
-                flush=True,
+    registration_uncertainty = _text(p, "registration_uncertainty_mm")
+
+    kwargs: dict[str, Any] = {
+        "reference": reference,
+        "align": align,
+        "output_directory": str(run_dir),
+        "fine_method": p["fine_method"],
+        "stability_seeds": _seeds(_text(p, "stability_seeds")),
+        "seed": int(p["seed"]),
+        "reference_precision_mm": float(p["reference_precision_mm"]),
+        "align_precision_mm": float(p["align_precision_mm"]),
+        "registration_uncertainty_mm": (
+            None
+            if not registration_uncertainty
+            else _float_or_literal(
+                registration_uncertainty, (), what="registration_uncertainty_mm"
             )
-            T_gui = ricp.coarse_gui(ref_sub, ali_sub, initial_T=T_coarse)
-            if T_gui is None:
-                raise AdapterError("coarse registration cancelled - aborting")
-            T_coarse = T_gui
-        else:
-            print("  Auto coarse placement accepted.", flush=True)
-    else:  # gui
-        print("Opening coarse registration GUI (SCENE-style top view)...", flush=True)
-        T_coarse = ricp.coarse_gui(ref_sub, ali_sub)
-        if T_coarse is None:
-            raise AdapterError("coarse registration cancelled - aborting")
-        print("Coarse transform accepted.", flush=True)
+        ),
+        "coarse_mode": p["coarse_mode"],
+        "coarse_review": p["coarse_review"],
+        "accept_poor_coarse": bool(p.get("accept_poor_coarse", False)),
+        "coarse_matrix": coarse_matrix or None,
+        "coarse_parameters": coarse_parameters,
+        "fit_tilt": bool(p.get("fit_tilt", True)),
+        "target_points": _int_or_literal(
+            _text(p, "target_points"), ("auto",), what="target_points"
+        ),
+        "dense_report_points": _int_or_literal(
+            _text(p, "dense_report_points"), ("auto", "off"), what="dense_report_points"
+        ),
+        "overlap": _float_or_literal(_text(p, "overlap"), ("auto", "off"), what="overlap"),
+        "report_thresholds_mm": _text(p, "report_thresholds_mm") or "auto",
+        "comparison_equivalence_mm": _float_or_literal(
+            _text(p, "comparison_equivalence_mm"), ("auto",), what="comparison_equivalence_mm"
+        ),
+        "extra_arguments": tuple(_text(p, "extra_arguments").split()),
+    }
 
-    # ---- tilt fit + write (mirrors main() 2446-2458) -----------------------
-    if not p.get("no_tilt_fit", False):
-        print("Tilt estimation from DEM differences:", flush=True)
-        placed = ricp.apply_transform(T_coarse, ali_sub)
-        T_tilt, tinfo = ricp.dem_tilt_fit(
-            ref_sub, placed, max_tilt_deg=float(p["max_tilt"]), spacing=ref_sub_spacing
-        )
-        if tinfo["ok"]:
-            T_coarse = T_tilt @ T_coarse
+    for key in ("max_registration_points", "max_evaluation_points"):
+        text = _text(p, key)
+        if text:
+            kwargs[key] = _int_or_literal(text, (), what=key)
 
-    target = out / "transform_coarse.txt"
-    np.savetxt(
-        str(target),
-        T_coarse,
-        fmt="%.10f",
-        header="coarse 4x4 (align -> reference), tilt fit included",
-    )
-    print("Coarse transform -> {0}".format(target), flush=True)
-    return target
+    return kwargs
 
 
 # --------------------------------------------------------------------------- #
-# outputs.json
+# RegistrationResult -> outputs.json                (pure, unit-tested)
 # --------------------------------------------------------------------------- #
 
 
-def find_native_run_dir(run_dir: Path) -> "Path | None":
-    """The run_YYYYMMDD_HHMMSS folder ricp created inside the studio run."""
-    candidates = [
-        child
-        for child in sorted(Path(run_dir).iterdir())
-        if child.is_dir() and child.name.startswith("run_")
-    ]
-    return candidates[-1] if candidates else None
+def chosen_method(result) -> "str | None":
+    """The method to register: the recommendation, else the only one that ran."""
+    methods = dict(result.methods)
+    recommended = result.recommended_method
+    if recommended and recommended in methods:
+        return recommended
+    if len(methods) == 1:
+        return next(iter(methods))
+    return None
 
 
-def collect_outputs(action: str, run_dir: Path) -> dict:
-    """``{output_key: [files relative to run_dir]}``."""
-    run_dir = Path(run_dir)
-    native = find_native_run_dir(run_dir)
-    if native is None:
-        return {}
+def collect_outputs(result, run_dir: "str | Path") -> tuple[dict[str, list[str]], list[str]]:
+    """``({output_key: [files relative to run_dir]}, notes)``.
 
-    def rel(path: Path) -> str:
-        return path.relative_to(run_dir).as_posix()
-
-    def existing(*names: str) -> list[str]:
-        return [rel(native / n) for n in names if (native / n).is_file()]
-
-    if action == "coarse":
-        files = existing("transform_coarse.txt")
-        return {"transform": files} if files else {}
-
+    Every path comes from the result object - the method's own
+    ``registered_cloud_path`` / ``transform_path`` / ``directory`` and
+    ``result.artifacts`` - never from guessed filenames. ``plots`` is the
+    coarse overlays plus every PNG inside the chosen method's directory
+    (decided 2026-09-09).
+    """
+    run_dir = Path(run_dir).resolve()
+    notes: list[str] = []
     outputs: dict[str, list[str]] = {}
 
-    registered = sorted(
-        rel(p)
-        for p in native.iterdir()
-        if p.is_file() and p.name.startswith("registered_")
-    )
-    if registered:
-        outputs["registered"] = registered
+    def rel(path) -> "str | None":
+        if path is None:
+            return None
+        path = Path(path)
+        if not path.is_file():
+            return None
+        try:
+            return path.resolve().relative_to(run_dir).as_posix()
+        except ValueError:
+            notes.append("{0} lies outside the run folder and was not registered".format(path))
+            return None
 
-    transforms = existing(
-        "transform_final.txt", "transform_coarse.txt", "transform_icp.txt"
-    )
-    if transforms and transforms[0].endswith("transform_final.txt"):
-        outputs["transform"] = transforms
+    def put(key: str, *paths) -> None:
+        files = [r for r in (rel(p) for p in paths) if r]
+        if files:
+            outputs[key] = files
 
-    report = existing("report.txt", "stats.csv", "c2c_check.txt")
-    if report and report[0].endswith("report.txt"):
-        outputs["report"] = report
+    artifacts = dict(result.artifacts)
+    method_name = chosen_method(result)
+    method = result.methods.get(method_name) if method_name else None
 
-    plots = sorted(rel(p) for p in (native / "plots").glob("*.png") if p.is_file())
-    if plots:
-        outputs["plots"] = plots
-    return outputs
+    if method is not None:
+        put("registered", method.registered_cloud_path)
+        put("transform", method.transform_path)
+        if "registered" not in outputs or "transform" not in outputs:
+            notes.append(
+                "method {0!r}: registered cloud or transform not found on disk".format(
+                    method_name
+                )
+            )
+    elif result.methods:
+        notes.append(
+            "no recommended method ({0} ran, comparison outcome: {1}) - only the "
+            "reports were registered; rerun with 'fine_method' set to the method "
+            "you choose after reading method_comparison.json".format(
+                ", ".join(sorted(result.methods)), result.comparison_outcome
+            )
+        )
+
+    put("uncertainty", artifacts.get("registration_uncertainty"))
+    put("comparison", artifacts.get("method_comparison"))
+
+    plots: list[Path] = [
+        Path(artifacts[key]) for key in _ARTIFACT_PLOT_KEYS if key in artifacts
+    ]
+    plots += [
+        Path(p) for p in artifacts.values()
+        if str(p).lower().endswith(".png") and Path(p) not in plots
+    ]
+    if method is not None and method.directory:
+        plots += sorted(Path(method.directory).glob("*.png"))
+    seen: set[str] = set()
+    unique = [p for p in plots if not (str(p) in seen or seen.add(str(p)))]
+    put("plots", *unique)
+
+    return outputs, notes
 
 
 # --------------------------------------------------------------------------- #
 # Running
 # --------------------------------------------------------------------------- #
+
+
+def _dump_result(run_dir: Path, result) -> None:
+    try:
+        with open(run_dir / RESULT_NAME, "w", encoding="utf-8") as handle:
+            json.dump(result.as_dict(), handle, indent=2, default=str)
+    except (OSError, TypeError, ValueError) as exc:
+        print("adapter: could not write {0} - {1}".format(RESULT_NAME, exc), flush=True)
+
+
+def _failure_lines(result) -> list[str]:
+    lines = [
+        "ERROR: ricp {0} (exit code {1})".format(result.status, result.exit_code)
+    ]
+    if result.error_message:
+        lines.append(result.error_message)
+    overlays = [
+        str(result.artifacts[key])
+        for key in _ARTIFACT_PLOT_KEYS
+        if key in result.artifacts
+    ]
+    if overlays:
+        lines.append("")
+        lines.append(
+            "Inspect the coarse overlays before rerunning with a reviewed coarse "
+            "transform artifact (or 'accept_poor_coarse'):"
+        )
+        lines.extend("  " + path for path in overlays)
+    if result.run_directory:
+        lines.append("")
+        lines.append("Run folder: {0}".format(result.run_directory))
+        lines.append("Full record: {0}".format(RESULT_NAME))
+    return lines
 
 
 def main(argv: "list[str] | None" = None) -> int:
@@ -452,39 +400,67 @@ def main(argv: "list[str] | None" = None) -> int:
     with open(args.params, "r", encoding="utf-8") as handle:
         params = json.load(handle)
 
+    # Captured BEFORE the run: the engine redirects sys.stdout into its own
+    # progress stream while it runs, so a callback that printed to sys.stdout
+    # would feed its own output back into that stream. The studio reads the
+    # process's real stdout.
+    real_stdout = sys.stdout
+
+    def on_progress(line: str) -> None:
+        real_stdout.write(line + "\n")
+        real_stdout.flush()
+
     try:
-        ricp = _import_ricp()
+        engine = _engine()
+    except AdapterError as exc:
+        print("ERROR: {0}".format(exc), file=sys.stderr, flush=True)
+        _write_error_file(run_dir, "ERROR: {0}".format(exc))
+        return 2
+
+    try:
         reference = prepare_input(args.reference, run_dir, what="reference")
         align = prepare_input(args.align, run_dir, what="align")
-
-        if args.action == "coarse":
-            _coarse_only(ricp, params, reference, align, run_dir)
-            code = 0
-        else:
-            cli_argv = build_cli_argv(
-                args.action,
-                params,
-                reference,
-                align,
-                run_dir,
-                coarse_matrix=args.coarse_artifact or None,
-            )
-            print("ricp.py " + " ".join(cli_argv), flush=True)
-            code = int(ricp.main(cli_argv) or 0)
+        kwargs = build_config_kwargs(
+            params, reference, align, run_dir, coarse_matrix=args.coarse_artifact or None
+        )
+        config = engine.RegistrationConfig(**kwargs)
+        config.validate()
     except AdapterError as exc:
-        print("ERROR: {0}".format(exc), file=sys.stderr)
-        _write_error_file(run_dir, exc)
+        print("ERROR: {0}".format(exc), file=sys.stderr, flush=True)
+        _write_error_file(run_dir, "ERROR: {0}".format(exc))
         return 2
-    except SystemExit as exc:  # argparse inside ricp
-        return int(exc.code or 0)
+    except engine.RICPConfigurationError as exc:
+        print("ERROR: invalid configuration - {0}".format(exc), file=sys.stderr, flush=True)
+        _write_error_file(run_dir, "ERROR: invalid configuration - {0}".format(exc))
+        return 2
 
-    if code != 0:
-        return code
+    print("adapter: RegistrationConfig " + json.dumps(
+        {k: (str(v) if isinstance(v, Path) else v) for k, v in kwargs.items()},
+        default=str), flush=True)
 
-    outputs = collect_outputs(args.action, run_dir)
+    result = engine.run_registration(config, on_progress=on_progress)
+
+    if result.run_directory:
+        _dump_result(run_dir, result)
+
+    if not result.succeeded:
+        lines = _failure_lines(result)
+        for line in lines:
+            print(line, flush=True)
+        _write_error_file(run_dir, lines)
+        return int(result.exit_code) or 1
+
+    outputs, notes = collect_outputs(result, run_dir)
+    for note in notes:
+        print("adapter: WARNING: " + note, flush=True)
     with open(run_dir / OUTPUTS_NAME, "w", encoding="utf-8") as handle:
         json.dump(outputs, handle, indent=2)
-    print("adapter: outputs.json -> {0}".format(sorted(outputs)), flush=True)
+    print(
+        "adapter: recommended method = {0}; outputs.json -> {1}".format(
+            chosen_method(result), sorted(outputs)
+        ),
+        flush=True,
+    )
     return 0
 
 

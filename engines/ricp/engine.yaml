@@ -1,78 +1,49 @@
-# ricp adapter (session 5). The pipeline code lives read-only in
-# ../../../ricp/ricp/ricp.py (its own repo); this folder holds ONLY this
-# manifest, the params files, and adapter.py. Zero changes inside ../ricp.
+# ricp plug, v2 (rebuilt 2026-09-09 for ricp-engine 0.2.0).
 #
-# Three actions (coarse/fine split approved by Mohammad 2026-08-27):
+# The science lives read-only in ../../../ricp/ricp (its own repo). Since
+# 0.2.0 that repo ships ricp_engine.py - a typed UI boundary
+# (RegistrationConfig -> run_registration -> RegistrationResult) - and is
+# installed EDITABLE into the rockslope env, so the adapter simply imports it.
+# This folder holds only this manifest, params_register.json and adapter.py:
+# a translator with no science in it. Zero changes inside ../ricp.
 #
-#   coarse       standalone coarse alignment -> a transform artifact. ricp.py
-#                has no --coarse-only flag, so the adapter re-composes the
-#                exact code path main() runs up to transform_coarse.txt, by
-#                calling ricp's own functions in ricp's own order. An
-#                equivalence test compares its output against a real ricp.py
-#                run. See adapter.py for the mirrored block.
-#   register     full R-ICP, REQUIRING a coarse transform (--coarse-matrix).
-#                Non-interactive: with the matrix supplied ricp can never fall
-#                back to the picking GUI, so it is safe to stream into the log.
-#   register_gui full R-ICP exactly as ricp.py runs today (coarse handled
-#                inside ricp: auto / gui / none). Interactive console.
+# ONE action. The "rerun after reviewing a poor coarse result" case is this
+# same action with a coarse transform artifact supplied (or accept_poor_coarse
+# ticked) - no second button needed; adding one later is a manifest-only edit.
 id: ricp
 name: R-ICP Registration
-version: 1.0.0   # ricp.py carries no __version__; adapter version
+version: 0.2.0   # tracks ricp-engine (pyproject.toml in ../ricp/ricp)
 description: >
-  Recursive-filter ICP registration (Aubertin 2025) with SCENE-style coarse
-  alignment. Wrapped as-is per architecture section 6 - ricp.py is untouched;
-  the package split is session 9.
+  Recursive-filter ICP registration (Aubertin 2025): coarse placement, then
+  the fine methods (paper-c2c, local-plane, m3c2) with a method comparison
+  and a registration-uncertainty statement for LoD analysis.
 
 actions:
-  - id: coarse
-    label: Coarse alignment only (produces a transform)
-    description: >
-      Runs ricp's coarse placement (auto top-view correlation, manual GUI
-      picking, or a supplied matrix) plus the DEM tilt fit, and writes the
-      4x4. Interactive: the GUI is used directly in 'gui' mode, and 'auto'
-      falls back to it when placement quality is poor.
-    interactive: true
-    inputs:
-      - {key: reference, type: pointcloud}
-      - {key: align, type: pointcloud}
-    outputs:
-      - {key: transform, type: transform}
-    params: params_coarse.json
-
   - id: register
-    label: R-ICP fine registration (from a coarse transform)
+    label: Register ALIGN onto the reference (R-ICP)
     description: >
-      Full R-ICP using a transform artifact as the coarse placement
-      (--coarse-matrix). Runs in the background with live progress in the log
-      panel - no console needed, because a supplied matrix removes every
-      interactive path.
+      The reference stays fixed; ALIGN is transformed onto it. Runs in the
+      background with progress streamed into the log panel. Leave
+      'coarse_review' at 'never' for this embedded use: a poor automatic
+      coarse placement then stops safely and leaves the coarse overlays in
+      the run folder - inspect them, then rerun with a reviewed coarse
+      transform artifact, or with 'accept_poor_coarse' ticked.
+      Registers the RECOMMENDED fine method plus the reports; when the
+      comparison is not decisive, only the reports register and the log says
+      why - rerun with 'fine_method' set to the method you choose.
     interactive: false
     inputs:
       - {key: reference, type: pointcloud}
       - {key: align, type: pointcloud}
-      - {key: coarse, type: transform}
+      # A 4x4 to use as the coarse placement (e.g. a reviewed matrix). Cannot
+      # be combined with the 'coarse_parameters' parameter.
+      - {key: coarse, type: transform, optional: true}
     outputs:
-      - {key: registered, type: pointcloud}
-      - {key: transform, type: transform}
-      - {key: report, type: report}
-      - {key: plots, type: figure}
-    params: params_register.json
-
-  - id: register_gui
-    label: R-ICP full run (coarse inside ricp, console)
-    description: >
-      ricp.py end to end exactly as it runs today: coarse-mode auto / gui /
-      none is handled inside ricp itself. Launches in its own console window
-      so the SCENE-style picking and matplotlib windows behave as always.
-    interactive: true
-    inputs:
-      - {key: reference, type: pointcloud}
-      - {key: align, type: pointcloud}
-    outputs:
-      - {key: registered, type: pointcloud}
-      - {key: transform, type: transform}
-      - {key: report, type: report}
-      - {key: plots, type: figure}
+      - {key: registered, type: pointcloud}   # recommended method's registered ALIGN
+      - {key: transform, type: transform}     # its ALIGN-to-reference 4x4
+      - {key: uncertainty, type: report}      # registration_uncertainty.json
+      - {key: comparison, type: report}       # method_comparison.json
+      - {key: plots, type: figure}            # coarse overlays + the method's plots
     params: params_register.json
 
 run:
