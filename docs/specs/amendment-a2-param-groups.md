@@ -134,9 +134,11 @@ method_argument_tokens(params) -> list[str]
   `all`; `--m3c2-*` flags only when `fine_method` is `m3c2` or `all`;
 - one token per element: `["--plane-radius", "0.35"]`. No quotes, no commas,
   no joined strings;
-- **validation before the run**, with an `AdapterError` naming the field:
-  plane radius must be a finite number **> 0**; core points a whole number
-  **≥ 1**; the other numeric fields finite and > 0; `m3c2_max_levels` ≥ 1.
+- **validation before the run**, with an `AdapterError` naming the field.
+  Bounds mirror `ricp.py`'s own checks (corrected 2026-09-19, decided by
+  Mohammad in-session — the spec's original `> 0` / `≥ 1` bounds were wrong
+  versus the engine): radii and depth finite and > 0; core points a whole
+  number **≥ 100**; max scale factor finite and **≥ 1**; `m3c2_max_levels` ≥ 1.
 - The generated tokens go **before** the user's `extra_arguments` in the final
   sequence, so an expert flag typed by hand wins (argparse takes the last
   occurrence). Say so in the docstring.
