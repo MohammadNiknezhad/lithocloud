@@ -288,7 +288,14 @@ def test_params_cover_every_config_field_except_the_three_the_adapter_owns(engin
     spec = load_params(engine.params_path("register"))
     config_fields = set(StubConfig.__dataclass_fields__)
     owned = {"reference", "align", "output_directory", "coarse_matrix"}
-    assert set(spec.keys) == config_fields - owned
+    # amendment A2: eight method parameters have no typed RegistrationConfig
+    # field and travel through extra_arguments (see test_ricp_method_params)
+    method_keys = {
+        "plane_radius", "m3c2_core_points", "m3c2_normal_radius",
+        "m3c2_projection_radius", "m3c2_max_depth", "m3c2_scale_mode",
+        "m3c2_max_scale_factor", "m3c2_max_levels",
+    }
+    assert set(spec.keys) == (config_fields - owned) | method_keys
 
 
 def test_help_text_carries_the_required_warnings(engine) -> None:

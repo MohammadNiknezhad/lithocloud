@@ -1,12 +1,17 @@
 {
-  "version": 1,
+  "version": 2,
   "fields": [
     {
       "key": "fine_method",
       "label": "Fine method",
       "type": "choice",
       "default": "all",
-      "choices": ["paper-c2c", "local-plane", "m3c2", "all"],
+      "choices": [
+        "paper-c2c",
+        "local-plane",
+        "m3c2",
+        "all"
+      ],
       "help": "Which fine registration method(s) to run. 'all' runs the three and compares them; the studio registers the RECOMMENDED one. Pick a single method to force it (e.g. after an undecided comparison)."
     },
     {
@@ -25,12 +30,144 @@
       "help": "Subsampling RNG seed for the main run."
     },
     {
+      "key": "plane_radius",
+      "label": "Plane radius (m)",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "local-plane",
+          "all"
+        ]
+      },
+      "help": "Neighborhood radius used to fit local planes. Empty = engine default (4x measured spacing). Must be a finite number > 0. Used by local-plane (and 'all')."
+    },
+    {
+      "key": "m3c2_core_points",
+      "label": "M3C2 core points",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "help": "Number of representative locations used by the M3C2-guided registration. More points increase coverage and processing time. Empty = engine default (5000). Whole number >= 100 (the engine's own bound)."
+    },
+    {
+      "key": "m3c2_normal_radius",
+      "label": "M3C2 normal radius (m)",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "help": "M3C2 normal-estimation radius in metres. Empty = engine default (6x measured spacing). Finite number > 0.",
+      "group": "Advanced",
+      "collapsed": true
+    },
+    {
+      "key": "m3c2_projection_radius",
+      "label": "M3C2 projection radius (m)",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "help": "M3C2 projection-cylinder radius in metres. Empty = engine default (4x measured spacing). Finite number > 0.",
+      "group": "Advanced"
+    },
+    {
+      "key": "m3c2_max_depth",
+      "label": "M3C2 max depth (m)",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "help": "M3C2 projection half-depth in metres. Empty = engine default (10x measured spacing). Finite number > 0.",
+      "group": "Advanced"
+    },
+    {
+      "key": "m3c2_scale_mode",
+      "label": "M3C2 scale mode",
+      "type": "choice",
+      "default": "",
+      "choices": [
+        "",
+        "adaptive",
+        "fixed"
+      ],
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "help": "adaptive expands normal/projection radii per core through a bounded density-support ladder; fixed uses exactly the base radii. Empty = engine default (adaptive).",
+      "group": "Advanced"
+    },
+    {
+      "key": "m3c2_max_scale_factor",
+      "label": "M3C2 max scale factor",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "help": "Largest per-core radius multiplier in adaptive M3C2 mode. Empty = engine default (4). Finite number >= 1 (the engine's own bound).",
+      "group": "Advanced"
+    },
+    {
+      "key": "m3c2_max_levels",
+      "label": "M3C2 max levels",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "help": "M3C2 stable-support refinement limit. Empty = engine default (5). Whole number >= 1.",
+      "group": "Advanced"
+    },
+    {
       "key": "reference_precision_mm",
       "label": "Reference precision (mm, 1-sigma)",
       "type": "float",
       "default": 0.0,
       "min": 0.0,
-      "help": "Calibrated one-sigma sensor/control precision of the REFERENCE cloud, in mm. NOT point spacing, NOT the C2C mean, NOT registration error. Leave 0 if unknown - the report will then say the survey-level LoD statement is incomplete."
+      "help": "Calibrated one-sigma sensor/control precision of the REFERENCE cloud, in mm. NOT point spacing, NOT the C2C mean, NOT registration error. Leave 0 if unknown - the report will then say the survey-level LoD statement is incomplete.",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "group": "Advanced"
     },
     {
       "key": "align_precision_mm",
@@ -38,107 +175,144 @@
       "type": "float",
       "default": 0.0,
       "min": 0.0,
-      "help": "Calibrated one-sigma sensor/control precision of the ALIGN cloud, in mm. NOT point spacing, NOT the C2C mean, NOT registration error. Leave 0 if unknown - the report will then say the survey-level LoD statement is incomplete."
+      "help": "Calibrated one-sigma sensor/control precision of the ALIGN cloud, in mm. NOT point spacing, NOT the C2C mean, NOT registration error. Leave 0 if unknown - the report will then say the survey-level LoD statement is incomplete.",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "group": "Advanced"
     },
     {
       "key": "registration_uncertainty_mm",
       "label": "Registration uncertainty override (mm)",
       "type": "str",
       "default": "",
-      "help": "Override the method-specific registration uncertainty used by M3C2, in mm. Empty = let the engine estimate it (recommended)."
+      "help": "Override the method-specific registration uncertainty used by M3C2, in mm. Empty = let the engine estimate it (recommended).",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2",
+          "all"
+        ]
+      },
+      "group": "Advanced"
     },
     {
       "key": "coarse_mode",
       "label": "Coarse mode",
       "type": "choice",
       "default": "auto",
-      "choices": ["auto", "gui", "none"],
-      "help": "auto = SCENE-style top-view correlation; gui = manual pick + nudge tool (opens the engine's own window); none = clouds already roughly placed. Ignored when a coarse transform artifact is supplied."
+      "choices": [
+        "auto",
+        "gui",
+        "none"
+      ],
+      "help": "auto = SCENE-style top-view correlation; gui = manual pick + nudge tool (opens the engine's own window); none = clouds already roughly placed. Ignored when a coarse transform artifact is supplied.",
+      "group": "Advanced"
     },
     {
       "key": "coarse_review",
       "label": "Coarse review checkpoint",
       "type": "choice",
       "default": "never",
-      "choices": ["always", "if-poor", "never"],
-      "help": "When the engine pauses to show the coarse overlays in its own Tk window. Keep 'never' in the studio (ENGINE_GUIDE section 4): a poor placement then stops safely and leaves coarse_overlay_top/side.png in the run folder for you to inspect."
+      "choices": [
+        "always",
+        "if-poor",
+        "never"
+      ],
+      "help": "When the engine pauses to show the coarse overlays in its own Tk window. Keep 'never' in the studio (ENGINE_GUIDE section 4): a poor placement then stops safely and leaves coarse_overlay_top/side.png in the run folder for you to inspect.",
+      "group": "Advanced"
     },
     {
       "key": "accept_poor_coarse",
       "label": "Accept a poor coarse placement",
       "type": "bool",
       "default": false,
-      "help": "Continue into fine registration even when the automatic coarse placement scored poorly. Tick ONLY after you have inspected the saved overlays."
+      "help": "Continue into fine registration even when the automatic coarse placement scored poorly. Tick ONLY after you have inspected the saved overlays.",
+      "group": "Advanced"
     },
     {
       "key": "coarse_parameters",
       "label": "Quick coarse 'tx ty tz yaw_deg'",
       "type": "str",
       "default": "",
-      "help": "Four numbers giving a quick coarse transform. Empty = not used. Cannot be combined with a coarse transform artifact."
+      "help": "Four numbers giving a quick coarse transform. Empty = not used. Cannot be combined with a coarse transform artifact.",
+      "group": "Advanced"
     },
     {
       "key": "fit_tilt",
       "label": "Fit tilt after coarse placement",
       "type": "bool",
       "default": true,
-      "help": "DEM-difference roll/pitch estimation after the coarse placement (engine default on)."
+      "help": "DEM-difference roll/pitch estimation after the coarse placement (engine default on).",
+      "group": "Advanced"
     },
     {
       "key": "target_points",
       "label": "Target points per cloud",
       "type": "str",
       "default": "auto",
-      "help": "'auto' (spacing-driven) or a whole number >= 2000. Cannot exceed the max registration points."
+      "help": "'auto' (spacing-driven) or a whole number >= 2000. Cannot exceed the max registration points.",
+      "group": "Advanced"
     },
     {
       "key": "max_registration_points",
       "label": "Max registration points",
       "type": "str",
       "default": "",
-      "help": "Hard cap on registration subsample size per cloud. Empty = the installed ricp's own default (1,500,000 in ricp-engine 0.2.0), so this never drifts from the engine."
+      "help": "Hard cap on registration subsample size per cloud. Empty = the installed ricp's own default (1,500,000 in ricp-engine 0.2.0), so this never drifts from the engine.",
+      "group": "Advanced"
     },
     {
       "key": "max_evaluation_points",
       "label": "Max evaluation points",
       "type": "str",
       "default": "",
-      "help": "Hard cap on points used for quality evaluation. Empty = the installed ricp's own default (500,000 in ricp-engine 0.2.0), so this never drifts from the engine."
+      "help": "Hard cap on points used for quality evaluation. Empty = the installed ricp's own default (500,000 in ricp-engine 0.2.0), so this never drifts from the engine.",
+      "group": "Advanced"
     },
     {
       "key": "dense_report_points",
       "label": "Dense report points",
       "type": "str",
       "default": "auto",
-      "help": "'auto', 'off', or a whole number >= 100: points in the dense spatial-residual report."
+      "help": "'auto', 'off', or a whole number >= 100: points in the dense spatial-residual report.",
+      "group": "Advanced"
     },
     {
       "key": "overlap",
       "label": "Overlap crop radius (m)",
       "type": "str",
       "default": "auto",
-      "help": "Common-overlap crop after coarse placement: 'auto', 'off', or a positive number in metres."
+      "help": "Common-overlap crop after coarse placement: 'auto', 'off', or a positive number in metres.",
+      "group": "Advanced"
     },
     {
       "key": "report_thresholds_mm",
       "label": "Report thresholds (mm)",
       "type": "str",
       "default": "auto",
-      "help": "Distance thresholds used in the reports, as the engine expects them; 'auto' = engine default."
+      "help": "Distance thresholds used in the reports, as the engine expects them; 'auto' = engine default.",
+      "group": "Advanced"
     },
     {
       "key": "comparison_equivalence_mm",
       "label": "Comparison equivalence margin (mm)",
       "type": "str",
       "default": "auto",
-      "help": "Margin within which two methods count as equivalent in the method comparison: 'auto' or a number in mm."
+      "help": "Margin within which two methods count as equivalent in the method comparison: 'auto' or a number in mm.",
+      "group": "Advanced"
     },
     {
       "key": "extra_arguments",
       "label": "Extra engine arguments",
       "type": "str",
       "default": "",
-      "help": "Advanced: additional ricp.py command-line arguments, space-separated, passed through unchanged. Empty = none."
+      "help": "Advanced: additional ricp.py command-line arguments, space-separated, passed through unchanged. Empty = none.",
+      "group": "Advanced"
     }
   ]
 }

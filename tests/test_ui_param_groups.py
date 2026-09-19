@@ -277,7 +277,8 @@ def test_chained_visibility_in_the_form(qtbot, isolated_settings) -> None:
     [
         "engines/tlsphoto/params_fuse.json",
         "engines/geohazard/params_run.json",
-        "engines/ricp/params_register.json",
+        # engines/ricp/params_register.json is schema v2 since A2 session B
+        # (grouped, collapsed Advanced) - covered by test_ricp_method_params.py
         "engines/_demo/params_run.json",
         "docs/examples/params_example.json",
     ],

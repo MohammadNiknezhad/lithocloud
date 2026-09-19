@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -250,7 +251,10 @@ def build_config_kwargs(
         "comparison_equivalence_mm": _float_or_literal(
             _text(p, "comparison_equivalence_mm"), ("auto",), what="comparison_equivalence_mm"
         ),
-        "extra_arguments": tuple(_text(p, "extra_arguments").split()),
+        # Method flags first, the user's own extra arguments after: argparse
+        # keeps the LAST occurrence, so a flag typed by hand wins.
+        "extra_arguments": tuple(method_argument_tokens(p))
+        + tuple(_text(p, "extra_arguments").split()),
     }
 
     for key in ("max_registration_points", "max_evaluation_points"):
@@ -259,6 +263,94 @@ def build_config_kwargs(
             kwargs[key] = _int_or_literal(text, (), what=key)
 
     return kwargs
+
+
+# --------------------------------------------------------------------------- #
+# Method parameters -> extra_arguments tokens      (pure, unit-tested)
+# --------------------------------------------------------------------------- #
+
+#: (params key, CLI flag, which fine_method values it applies to, validator).
+#: RegistrationConfig has no typed field for these (amendment A2, finding 2),
+#: so they travel through extra_arguments, which to_argv() appends verbatim.
+_PLANE_METHODS = ("local-plane", "all")
+_M3C2_METHODS = ("m3c2", "all")
+
+
+def _positive_float(text: str, *, what: str) -> str:
+    try:
+        value = float(text)
+    except ValueError:
+        raise AdapterError("{0}: {1!r} is not a number".format(what, text)) from None
+    if not math.isfinite(value) or value <= 0:
+        raise AdapterError("{0}: must be a finite number > 0, got {1!r}".format(what, text))
+    return text
+
+
+def _float_at_least_one(text: str, *, what: str) -> str:
+    try:
+        value = float(text)
+    except ValueError:
+        raise AdapterError("{0}: {1!r} is not a number".format(what, text)) from None
+    if not math.isfinite(value) or value < 1.0:
+        # ricp's own bound: "--m3c2-max-scale-factor must be finite and >= 1"
+        raise AdapterError("{0}: must be a finite number >= 1, got {1!r}".format(what, text))
+    return text
+
+
+def _whole_at_least(minimum: int):
+    def check(text: str, *, what: str) -> str:
+        try:
+            value = int(text)
+        except ValueError:
+            raise AdapterError("{0}: {1!r} is not a whole number".format(what, text)) from None
+        if value < minimum:
+            raise AdapterError("{0}: must be a whole number >= {1}, got {2}".format(what, minimum, value))
+        return str(value)
+
+    return check
+
+
+_METHOD_FLAGS = (
+    ("plane_radius", "--plane-radius", _PLANE_METHODS, _positive_float),
+    ("m3c2_core_points", "--m3c2-core-points", _M3C2_METHODS, _whole_at_least(100)),
+    ("m3c2_normal_radius", "--m3c2-normal-radius", _M3C2_METHODS, _positive_float),
+    ("m3c2_projection_radius", "--m3c2-projection-radius", _M3C2_METHODS, _positive_float),
+    ("m3c2_max_depth", "--m3c2-max-depth", _M3C2_METHODS, _positive_float),
+    ("m3c2_scale_mode", "--m3c2-scale-mode", _M3C2_METHODS, None),
+    ("m3c2_max_scale_factor", "--m3c2-max-scale-factor", _M3C2_METHODS, _float_at_least_one),
+    ("m3c2_max_levels", "--m3c2-max-levels", _M3C2_METHODS, _whole_at_least(1)),
+)
+
+
+def method_argument_tokens(params: dict) -> list[str]:
+    """Method-parameter flags as separate argv tokens, for the selected method.
+
+    * a field left empty emits nothing - the engine's own default applies,
+      never a value invented here;
+    * ``--plane-radius`` only when ``fine_method`` is local-plane or all;
+      ``--m3c2-*`` only for m3c2 or all - so a stale or even invalid value in
+      a hidden field never blocks a run of another method;
+    * one token per element (``["--plane-radius", "0.35"]``): no quotes, no
+      commas, no joined strings;
+    * validated before the run, naming the field. Bounds mirror ricp.py's own
+      checks (decided 2026-09-19): radii and depth finite and > 0, core points
+      a whole number >= 100, max scale factor finite and >= 1, max levels >= 1.
+
+    ``build_config_kwargs`` places these BEFORE the user's ``extra_arguments``;
+    argparse takes the last occurrence, so a hand-typed flag still wins.
+    """
+    method = str(params.get("fine_method", "")).strip()
+    tokens: list[str] = []
+    for key, flag, methods, validator in _METHOD_FLAGS:
+        if method not in methods:
+            continue
+        text = _text(params, key)
+        if not text:
+            continue
+        if validator is not None:
+            text = validator(text, what=key)
+        tokens.extend([flag, text])
+    return tokens
 
 
 # --------------------------------------------------------------------------- #
