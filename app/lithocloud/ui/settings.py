@@ -126,6 +126,37 @@ def set_last_browse_dir(workspace: str | Path, folder: str | Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
+# Collapsed form sections, per engine+action (amendment A2)
+# --------------------------------------------------------------------------- #
+
+_FORM_SECTIONS_KEY = "forms/collapsed"
+
+
+def _section_key(state_key: str, group: str) -> str:
+    # group titles carry spaces and may carry '/', which QSettings would nest
+    raw = "{0}|{1}".format(state_key, group)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def section_collapsed(state_key: str | None, group: str) -> bool | None:
+    """Remembered collapsed state of one titled section; None = never toggled."""
+    if not state_key:
+        return None
+    raw = _store().value("{0}/{1}".format(_FORM_SECTIONS_KEY, _section_key(state_key, group)))
+    if raw is None:
+        return None
+    return str(raw).lower() in ("true", "1")
+
+
+def set_section_collapsed(state_key: str | None, group: str, collapsed: bool) -> None:
+    if not state_key:
+        return  # an anonymous form (tests, previews) remembers nothing
+    _store().setValue(
+        "{0}/{1}".format(_FORM_SECTIONS_KEY, _section_key(state_key, group)), bool(collapsed)
+    )
+
+
+# --------------------------------------------------------------------------- #
 # CloudCompare
 # --------------------------------------------------------------------------- #
 

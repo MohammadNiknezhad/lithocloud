@@ -36,9 +36,12 @@ from .manifest import (
 )
 from .params import (
     FIELD_TYPES,
+    PARAMS_SCHEMA_VERSION,
+    SUPPORTED_PARAMS_VERSIONS,
     ParamField,
     ParamsError,
     ParamSpec,
+    VisibleWhen,
     dump_params,
     load_params,
 )
@@ -73,9 +76,12 @@ __all__ = [
     "render_command",
     # params
     "FIELD_TYPES",
+    "PARAMS_SCHEMA_VERSION",
+    "SUPPORTED_PARAMS_VERSIONS",
     "ParamField",
     "ParamSpec",
     "ParamsError",
+    "VisibleWhen",
     "dump_params",
     "load_params",
     # runs

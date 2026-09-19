@@ -447,7 +447,11 @@ class EnginePanel(QWidget):
                 warn.setWordWrap(True)
                 self._detail_layout.addWidget(warn)
             else:
-                self._form = ParamForm(spec, self._detail_host)
+                self._form = ParamForm(
+                    spec,
+                    self._detail_host,
+                    state_key="{0}/{1}".format(engine.id, action.id),
+                )
                 self._detail_layout.addWidget(QLabel("Parameters", self._detail_host))
                 self._detail_layout.addWidget(self._form)
 

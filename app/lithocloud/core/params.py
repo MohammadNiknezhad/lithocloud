@@ -34,14 +34,22 @@ from ._util import atomic_write_json, read_json
 __all__ = [
     "FIELD_TYPES",
     "PARAMS_SCHEMA_VERSION",
+    "SUPPORTED_PARAMS_VERSIONS",
     "ParamField",
     "ParamSpec",
     "ParamsError",
+    "VisibleWhen",
     "dump_params",
     "load_params",
 ]
 
-PARAMS_SCHEMA_VERSION = 1
+#: v1 is the flat schema. v2 (amendment A2, 2026-09-19) adds three optional
+#: field keys - ``group``, ``collapsed``, ``visible_when`` - and is what
+#: :func:`dump_params` writes. A file must declare version 2 to use them, so an
+#: older studio can never silently ignore the grouping.
+PARAMS_SCHEMA_VERSION = 2
+SUPPORTED_PARAMS_VERSIONS = (1, 2)
+_V2_KEYS = ("group", "collapsed", "visible_when")
 
 #: Closed list of widget types for v1.
 FIELD_TYPES: tuple[str, ...] = ("float", "int", "str", "bool", "choice")
@@ -56,6 +64,41 @@ class ParamsError(ValueError):
 
 
 @dataclass(frozen=True)
+class VisibleWhen:
+    """``{"field": "<other key>", "in": [...]}`` - show a row only while the
+    controlling field's current value is one of *values*."""
+
+    field: str
+    values: tuple[Any, ...]
+
+    @classmethod
+    def from_dict(cls, data: Any, *, where: str) -> "VisibleWhen":
+        if not isinstance(data, Mapping):
+            raise ParamsError(
+                "{0}: 'visible_when' must be an object {{\"field\": ..., \"in\": [...]}}".format(
+                    where
+                )
+            )
+        unknown = set(data) - {"field", "in"}
+        if unknown:
+            raise ParamsError(
+                "{0}: 'visible_when' has unknown key(s) {1}".format(
+                    where, ", ".join(sorted(unknown))
+                )
+            )
+        controller = data.get("field")
+        if not isinstance(controller, str) or not controller:
+            raise ParamsError("{0}: 'visible_when.field' must be a non-empty string".format(where))
+        values = data.get("in")
+        if not isinstance(values, Sequence) or isinstance(values, str) or not values:
+            raise ParamsError("{0}: 'visible_when.in' must be a non-empty list".format(where))
+        return cls(field=controller, values=tuple(values))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"field": self.field, "in": list(self.values)}
+
+
+@dataclass(frozen=True)
 class ParamField:
     """One parameter: one row in the generated form."""
 
@@ -67,6 +110,16 @@ class ParamField:
     max: float | int | None = None
     choices: tuple[Any, ...] | None = None
     help: str = ""
+    #: schema v2 - section title; None = the first, untitled section.
+    group: str | None = None
+    #: schema v2 - on the first field of a titled group: render it collapsed.
+    collapsed: bool = False
+    #: schema v2 - conditional visibility; a display concern only.
+    visible_when: VisibleWhen | None = None
+
+    @property
+    def uses_v2(self) -> bool:
+        return self.group is not None or self.collapsed or self.visible_when is not None
 
     # -- construction ----------------------------------------------------- #
 
@@ -86,11 +139,26 @@ class ParamField:
             "max",
             "choices",
             "help",
+            "group",
+            "collapsed",
+            "visible_when",
         }
         if unknown:
             raise ParamsError(
                 "{0}: unknown key(s) {1}".format(where, ", ".join(sorted(unknown)))
             )
+
+        group = data.get("group")
+        if group is not None and (not isinstance(group, str) or not group.strip()):
+            raise ParamsError("{0}: 'group' must be a non-empty string".format(where))
+        collapsed = data.get("collapsed", False)
+        if not isinstance(collapsed, bool):
+            raise ParamsError("{0}: 'collapsed' must be true or false".format(where))
+        visible_when = (
+            VisibleWhen.from_dict(data["visible_when"], where=where)
+            if data.get("visible_when") is not None
+            else None
+        )
 
         for required in ("key", "type", "default"):
             if required not in data:
@@ -152,6 +220,9 @@ class ParamField:
             max=high,
             choices=choices,
             help=help_text,
+            group=group.strip() if group is not None else None,
+            collapsed=collapsed,
+            visible_when=visible_when,
         )
         # A default that its own field would reject is always a bug.
         try:
@@ -175,6 +246,12 @@ class ParamField:
             out["choices"] = list(self.choices)
         if self.help:
             out["help"] = self.help
+        if self.group is not None:
+            out["group"] = self.group
+        if self.collapsed:
+            out["collapsed"] = True
+        if self.visible_when is not None:
+            out["visible_when"] = self.visible_when.to_dict()
         return out
 
     # -- validation ------------------------------------------------------- #
@@ -259,6 +336,51 @@ class ParamSpec:
     def keys(self) -> tuple[str, ...]:
         return tuple(f.key for f in self.fields)
 
+    # -- groups and visibility (schema v2) ---------------------------------- #
+
+    def groups(self) -> tuple[str | None, ...]:
+        """Section titles in the order they first appear; ``None`` is the
+        untitled section (fields with no ``group``)."""
+        seen: list[str | None] = []
+        for item in self.fields:
+            if item.group not in seen:
+                seen.append(item.group)
+        return tuple(seen)
+
+    def fields_in(self, group: str | None) -> tuple[ParamField, ...]:
+        """The fields of one section, in file order."""
+        return tuple(f for f in self.fields if f.group == group)
+
+    def is_collapsed(self, group: str | None) -> bool:
+        """Whether a titled section declares ``collapsed`` (on its first field)."""
+        members = self.fields_in(group)
+        return bool(members) and members[0].collapsed
+
+    def controllers(self) -> tuple[str, ...]:
+        """Keys that some other field's visibility depends on."""
+        out: list[str] = []
+        for item in self.fields:
+            if item.visible_when is not None and item.visible_when.field not in out:
+                out.append(item.visible_when.field)
+        return tuple(out)
+
+    def is_visible(self, key: str, values: Mapping[str, Any]) -> bool:
+        """Whether *key*'s row should show for the given (raw) values.
+
+        Transitive (decided 2026-09-19): a row is visible only if its
+        controller's value is in the list AND the controller itself is
+        visible, so nothing depends on a value the user cannot see. A
+        controller missing from *values* is judged on its default. Hidden or
+        not, the field's value is untouched - hiding is display only.
+        """
+        field = self.field(key)
+        rule = field.visible_when
+        if rule is None:
+            return True
+        controller = self.field(rule.field)
+        current = values.get(rule.field, controller.default)
+        return current in rule.values and self.is_visible(rule.field, values)
+
     # -- values ------------------------------------------------------------ #
 
     def defaults(self) -> dict[str, Any]:
@@ -306,12 +428,13 @@ class ParamSpec:
 
     @classmethod
     def from_dict(cls, data: Any, *, where: str = "params", path: Path | None = None) -> "ParamSpec":
+        version: Any = PARAMS_SCHEMA_VERSION
         if isinstance(data, Mapping):
             version = data.get("version", PARAMS_SCHEMA_VERSION)
-            if version != PARAMS_SCHEMA_VERSION:
+            if version not in SUPPORTED_PARAMS_VERSIONS:
                 raise ParamsError(
                     "{0}: unsupported params version {1!r} (this studio speaks v{2})".format(
-                        where, version, PARAMS_SCHEMA_VERSION
+                        where, version, " and v".join(str(v) for v in SUPPORTED_PARAMS_VERSIONS)
                     )
                 )
             unknown = set(data) - {"version", "fields"}
@@ -344,7 +467,84 @@ class ParamSpec:
             seen.add(item.key)
             fields.append(item)
 
+        if version == 1:
+            v2_users = [f.key for f in fields if f.uses_v2]
+            if v2_users:
+                raise ParamsError(
+                    "{0}: field(s) {1} use {2}, which need \"version\": 2 - declare it "
+                    "so an older studio cannot silently ignore them".format(
+                        where, ", ".join(repr(k) for k in v2_users), " / ".join(_V2_KEYS)
+                    )
+                )
+
+        _check_layout_rules(fields, where)
         return cls(fields=tuple(fields), path=path)
+
+
+def _check_layout_rules(fields: list[ParamField], where: str) -> None:
+    """Schema v2 rules that span fields: visibility targets and 'collapsed'."""
+    by_key = {f.key: f for f in fields}
+
+    # 'collapsed' belongs on the FIRST field of a TITLED group, nowhere else.
+    first_of_group: dict[str | None, str] = {}
+    for f in fields:
+        first_of_group.setdefault(f.group, f.key)
+    for f in fields:
+        if not f.collapsed:
+            continue
+        if f.group is None:
+            raise ParamsError(
+                "{0}: field {1!r}: 'collapsed' needs a 'group' - the untitled "
+                "section has no box to collapse".format(where, f.key)
+            )
+        if first_of_group[f.group] != f.key:
+            raise ParamsError(
+                "{0}: field {1!r}: 'collapsed' must be on the first field of group "
+                "{2!r} (that is {3!r})".format(where, f.key, f.group, first_of_group[f.group])
+            )
+
+    for f in fields:
+        rule = f.visible_when
+        if rule is None:
+            continue
+        prefix = "{0}: field {1!r}: visible_when".format(where, f.key)
+        if rule.field == f.key:
+            raise ParamsError(prefix + " cannot reference the field itself")
+        controller = by_key.get(rule.field)
+        if controller is None:
+            raise ParamsError(
+                prefix + " names {0!r}, which is not a field in this file".format(rule.field)
+            )
+        if controller.type not in ("choice", "bool"):
+            raise ParamsError(
+                prefix + " controller {0!r} must be a choice or bool field, "
+                "not {1}".format(rule.field, controller.type)
+            )
+        if controller.type == "choice":
+            assert controller.choices is not None
+            impossible = [v for v in rule.values if v not in controller.choices]
+        else:
+            impossible = [v for v in rule.values if not isinstance(v, bool)]
+        if impossible:
+            raise ParamsError(
+                prefix + " lists {0}, which {1!r} can never equal".format(
+                    ", ".join(repr(v) for v in impossible), rule.field
+                )
+            )
+
+    # No cycles: follow controller -> controller; a repeat means a loop.
+    for f in fields:
+        trail: list[str] = [f.key]
+        node = f
+        while node.visible_when is not None:
+            nxt = node.visible_when.field
+            if nxt in trail:
+                trail.append(nxt)
+                raise ParamsError(
+                    "{0}: visible_when forms a cycle: {1}".format(where, " -> ".join(trail))
+                )
+            trail.append(nxt)
+            node = by_key[nxt]
 
 
 def load_params(path: PathLike) -> ParamSpec:

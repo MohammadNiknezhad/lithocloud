@@ -355,7 +355,7 @@ def test_dump_writes_the_versioned_form_even_from_a_bare_list(tmp_path: Path) ->
     dump_params(spec, out)
 
     data = json.loads(out.read_text(encoding="utf-8"))
-    assert data["version"] == 1
+    assert data["version"] == 2  # dump always writes the current schema (A2)
     assert [f["key"] for f in data["fields"]] == list(spec.keys)
 
 
