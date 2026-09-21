@@ -40,6 +40,13 @@
       "type": "str",
       "default": "subsampled.laz",
       "help": "Written inside the run folder. Extension decides the LAS/LAZ format."
+    },
+    {
+      "key": "overlap_edges",
+      "label": "Overlap edges",
+      "type": "edge_list",
+      "default": [[0, 1]],
+      "help": "edge_list (2026-09-21): [fixed, moving] scan-index pairs; the shell draws spin-boxes + a table and rejects self-edges and duplicate connections. Its help text is shown as a hint under the table. Range and connectivity rules belong to the adapter."
     }
   ]
 }

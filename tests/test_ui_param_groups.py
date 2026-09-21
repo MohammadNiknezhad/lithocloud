@@ -293,8 +293,10 @@ def test_a_v1_engine_file_renders_as_one_flat_untitled_section(
 
     assert spec.groups() == (None,)
     assert widget.findChildren(QGroupBox) == []            # no sections at all
-    labels = [l.text() for l in widget.findChildren(QLabel)]
-    assert labels == [f.label for f in spec]                # every row, file order
+    # the form-row labels, in file order (a composite widget such as the
+    # edge_list editor carries QLabels of its own, so count rows, not labels)
+    labels = [widget.label_widget(k).text() for k in spec.keys]
+    assert labels == [f.label for f in spec]
     assert all(shown(widget, k) for k in spec.keys)         # nothing conditional
     assert widget.values() == spec.defaults()
     assert settings.section_collapsed("x/y", "anything") is None

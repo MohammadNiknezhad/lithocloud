@@ -139,19 +139,21 @@ def test_an_empty_project_can_still_be_run_from_a_browsed_file(
 
 
 def test_a_multiple_slot_mixes_artifacts_and_files(qtbot, tmp_path: Path) -> None:
+    """Since 2026-09-21 the multiple slot is an ORDERED list of chosen rows."""
     artifact = fake_artifact("a__c", "pointcloud")
     picker = _InputPicker(slot("cloud", "pointcloud", multiple=True), [artifact])
     qtbot.addWidget(picker)
 
-    picker._list.item(0).setSelected(True)
+    picker._add_available()                       # the artifact becomes row 1
     one = ExternalFile(tmp_path / "one.las")
     two = ExternalFile(tmp_path / "two.las")
-    picker._add_external(one)
+    picker._add_external(one)                     # browsed files append
     picker._add_external(two)
 
     value = picker.value()
-    assert value == [artifact, one, two]         # browsed files auto-selected
+    assert value == [artifact, one, two]
     assert picker._list.count() == 3
+    assert picker.row_labels() == ["1.  a__c", "2.  [file] one.las", "3.  [file] two.las"]
 
 
 def test_optional_slot_keeps_its_none_entry(qtbot, tmp_path: Path) -> None:

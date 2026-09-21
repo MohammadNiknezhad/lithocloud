@@ -71,16 +71,49 @@ class _InputPicker(QWidget):
 
         self._combo: QComboBox | None = None
         self._list: QListWidget | None = None
+        self._available: QComboBox | None = None
 
         if slot.multiple:
-            box = QListWidget(self)
-            box.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-            box.setMaximumHeight(96)
+            # An ORDERED list of chosen inputs (2026-09-21): row numbers are
+            # shown, rows can be moved up/down and removed, and the order is
+            # the order values() returns - the ricp plug numbers align scans
+            # 1..N from it. Artifacts are added from a combo; browsed files
+            # are appended by Browse.
+            column = QVBoxLayout()
+            column.setContentsMargins(0, 0, 0, 0)
+            pick = QHBoxLayout()
+            available = QComboBox(self)
             for artifact in self._compatible:
-                box.addItem(self._artifact_item(artifact))
-            box.itemSelectionChanged.connect(self.changed)
+                available.addItem(artifact.artifact_id, userData=artifact)
+            available.setToolTip("compatible artifacts in this project")
+            self._available = available
+            add = QPushButton("Add", self)
+            add.setToolTip("append the chosen artifact as the next row")
+            add.clicked.connect(self._add_available)
+            pick.addWidget(available, stretch=1)
+            pick.addWidget(add)
+            column.addLayout(pick)
+
+            box = QListWidget(self)
+            box.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            box.setMaximumHeight(120)
             self._list = box
-            layout.addWidget(box, stretch=1)
+            row = QHBoxLayout()
+            row.addWidget(box, stretch=1)
+            buttons = QVBoxLayout()
+            for text, handler, tip in (
+                ("Up", self._move_up, "move the selected row one place earlier"),
+                ("Down", self._move_down, "move the selected row one place later"),
+                ("Remove", self._remove_current, "drop the selected row"),
+            ):
+                button = QPushButton(text, self)
+                button.setToolTip(tip)
+                button.clicked.connect(handler)
+                buttons.addWidget(button)
+            buttons.addStretch(1)
+            row.addLayout(buttons)
+            column.addLayout(row)
+            layout.addLayout(column, stretch=1)
         else:
             combo = QComboBox(self)
             if slot.optional:
@@ -150,14 +183,85 @@ class _InputPicker(QWidget):
         self.browsed_dir = chosen[-1].path.parent
         self.changed.emit()
 
+    # -- ordered multi-input rows ------------------------------------------- #
+
+    def _add_row(self, value: "Artifact | ExternalFile") -> None:
+        assert self._list is not None
+        item = QListWidgetItem()
+        item.setData(Qt.ItemDataRole.UserRole, value)
+        item.setToolTip(
+            str(value.path) if isinstance(value, ExternalFile) else value.artifact_id
+        )
+        self._list.addItem(item)
+        self._renumber()
+        self._list.setCurrentItem(item)
+
+    def _renumber(self) -> None:
+        """Row text = '<n>. <name>' - the number IS the input's position."""
+        assert self._list is not None
+        for row in range(self._list.count()):
+            item = self._list.item(row)
+            data = item.data(Qt.ItemDataRole.UserRole)
+            name = (
+                self._file_label(data) if isinstance(data, ExternalFile) else data.artifact_id
+            )
+            item.setText("{0}.  {1}".format(row + 1, name))
+
+    def rows(self) -> list:
+        """The chosen inputs, in order (Artifact | ExternalFile each)."""
+        if self._list is None:
+            return []
+        return [
+            self._list.item(r).data(Qt.ItemDataRole.UserRole)
+            for r in range(self._list.count())
+        ]
+
+    def row_labels(self) -> list[str]:
+        return [self._list.item(r).text() for r in range(self._list.count())] if self._list else []
+
+    def _add_available(self) -> None:
+        if self._available is None or self._available.currentData() is None:
+            return
+        self._add_row(self._available.currentData())
+        self.changed.emit()
+
+    def _move(self, delta: int) -> None:
+        assert self._list is not None
+        row = self._list.currentRow()
+        target = row + delta
+        if row < 0 or not (0 <= target < self._list.count()):
+            return
+        item = self._list.takeItem(row)
+        self._list.insertItem(target, item)
+        self._renumber()
+        self._list.setCurrentRow(target)
+        self.changed.emit()
+
+    def _move_up(self) -> None:
+        self._move(-1)
+
+    def _move_down(self) -> None:
+        self._move(+1)
+
+    def _remove_current(self) -> None:
+        assert self._list is not None
+        row = self._list.currentRow()
+        if row < 0:
+            return
+        self._list.takeItem(row)
+        self._renumber()
+        self.changed.emit()
+
+    def move_row(self, row: int, delta: int) -> None:
+        """Programmatic reorder (tests, presets)."""
+        assert self._list is not None
+        self._list.setCurrentRow(row)
+        self._move(delta)
+
     def _add_external(self, external: ExternalFile) -> None:
         label = self._file_label(external)
         if self._list is not None:
-            item = QListWidgetItem(label)
-            item.setData(Qt.ItemDataRole.UserRole, external)
-            item.setToolTip(str(external.path))
-            self._list.addItem(item)
-            item.setSelected(True)  # newly browsed files are used straight away
+            self._add_row(external)  # appended as the next numbered row
         else:
             assert self._combo is not None
             self._combo.addItem(label, userData=external)
@@ -186,37 +290,41 @@ class _InputPicker(QWidget):
         """Re-offer previously browsed files after an artifact refresh.
 
         Without this, finishing a run would silently drop the file the user
-        browsed for the next one.
+        browsed for the next one. For an ordered multi-input the rows ARE the
+        value, so set_value rebuilds them in the remembered order.
         """
-        for external in externals:
-            self._add_external(external)
+        if self._list is None:
+            for external in externals:
+                self._add_external(external)
         self.set_value(current)
 
     def set_value(self, value: Any) -> None:
         wanted = value if isinstance(value, list) else [value]
-        wanted_ids = {_value_id(v) for v in wanted if v is not None}
-        if not wanted_ids:
+        wanted = [v for v in wanted if v is not None]
+        if not wanted:
             return
 
         if self._list is not None:
-            for row in range(self._list.count()):
-                item = self._list.item(row)
-                item.setSelected(
-                    _value_id(item.data(Qt.ItemDataRole.UserRole)) in wanted_ids
-                )
+            # rebuild the ordered rows exactly as given, resolving artifacts
+            # against the current project by id so a refreshed artifact list
+            # keeps the same choice
+            by_id = {a.artifact_id: a for a in self._compatible}
+            self._list.clear()
+            for v in wanted:
+                if isinstance(v, Artifact):
+                    v = by_id.get(v.artifact_id, v)
+                self._add_row(v)
         elif self._combo is not None:
+            wanted_ids = {_value_id(v) for v in wanted}
             for index in range(self._combo.count()):
                 if _value_id(self._combo.itemData(index)) in wanted_ids:
                     self._combo.setCurrentIndex(index)
                     return
 
     def value(self) -> Any:
-        """Artifact | ExternalFile | list of either | None."""
+        """Artifact | ExternalFile | ORDERED list of either | None."""
         if self._list is not None:
-            return [
-                item.data(Qt.ItemDataRole.UserRole)
-                for item in self._list.selectedItems()
-            ]
+            return self.rows()
         assert self._combo is not None
         return self._combo.currentData()
 

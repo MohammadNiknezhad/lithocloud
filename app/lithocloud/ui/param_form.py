@@ -47,6 +47,7 @@ from PySide6.QtWidgets import (
 from lithocloud.core import ParamField, ParamSpec
 
 from . import settings
+from .edge_list_widget import EdgeListWidget
 
 # QDoubleSpinBox needs finite bounds; the spec's min/max win when present.
 _FLOAT_MIN, _FLOAT_MAX = -1e12, 1e12
@@ -121,7 +122,7 @@ class ParamForm(QWidget):
             form.setContentsMargins(0, 0, 0, 0)
         for field in self._spec.fields_in(group):
             widget = self._make_widget(field)
-            if field.help:
+            if field.help and field.type != "edge_list":
                 widget.setToolTip(field.help)
             self._widgets[field.key] = widget
             self._row_layout[field.key] = form
@@ -184,6 +185,12 @@ class ParamForm(QWidget):
             combo.setCurrentIndex(field.choices.index(field.default))
             return combo
 
+        if field.type == "edge_list":
+            # the help text is the hint label under the table, not a tooltip
+            edges = EdgeListWidget(hint=field.help, parent=self)
+            edges.set_value(field.default)
+            return edges
+
         # str
         edit = QLineEdit(self)
         edit.setText(str(field.default))
@@ -210,6 +217,8 @@ class ParamForm(QWidget):
                 raw[field.key] = widget.isChecked()
             elif field.type == "choice":
                 raw[field.key] = widget.currentData()
+            elif field.type == "edge_list":
+                raw[field.key] = widget.value()
             else:
                 raw[field.key] = widget.text()
         return raw
@@ -250,6 +259,8 @@ class ParamForm(QWidget):
             elif field.type == "choice":
                 assert field.choices is not None
                 widget.setCurrentIndex(field.choices.index(value))
+            elif field.type == "edge_list":
+                widget.set_value(value)
             else:
                 widget.setText(value)
         self._refresh_visibility()

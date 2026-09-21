@@ -51,8 +51,12 @@ PARAMS_SCHEMA_VERSION = 2
 SUPPORTED_PARAMS_VERSIONS = (1, 2)
 _V2_KEYS = ("group", "collapsed", "visible_when")
 
-#: Closed list of widget types for v1.
-FIELD_TYPES: tuple[str, ...] = ("float", "int", "str", "bool", "choice")
+#: Closed list of widget types. v1: float, int, str, bool, choice.
+#: ``edge_list`` (2026-09-21, ricp projects): a list of ``[fixed, moving]``
+#: scan-index pairs; the shell draws two spin-boxes + a table. Only the value
+#: SHAPE is validated here - graph rules (range, connectivity) belong to the
+#: engine adapter that knows how many scans there are.
+FIELD_TYPES: tuple[str, ...] = ("float", "int", "str", "bool", "choice", "edge_list")
 
 _NUMERIC = ("float", "int")
 
@@ -265,6 +269,9 @@ class ParamField:
         """
         name = self.key
 
+        if self.type == "edge_list":
+            return _check_edge_list(name, value)
+
         if self.type == "bool":
             if not isinstance(value, bool):
                 raise ParamsError(
@@ -306,6 +313,34 @@ class ParamField:
         if self.max is not None and number > self.max:
             raise ParamsError("{0}: {1} is above the maximum {2}".format(name, number, self.max))
         return number
+
+
+def _check_edge_list(name: str, value: Any) -> list[list[int]]:
+    """Shape check for an ``edge_list`` value: ``[[fixed, moving], ...]`` of
+    non-negative whole numbers. Returns a normalised list of 2-lists."""
+    if isinstance(value, str) or not isinstance(value, Sequence):
+        raise ParamsError(
+            "{0}: expected a list of [fixed, moving] pairs, got {1!r}".format(name, value)
+        )
+    out: list[list[int]] = []
+    for index, item in enumerate(value):
+        if isinstance(item, str) or not isinstance(item, Sequence) or len(item) != 2:
+            raise ParamsError(
+                "{0}: edge {1} must be a [fixed, moving] pair, got {2!r}".format(
+                    name, index, item
+                )
+            )
+        pair: list[int] = []
+        for end in item:
+            if isinstance(end, bool) or not isinstance(end, int) or end < 0:
+                raise ParamsError(
+                    "{0}: edge {1} must hold non-negative whole numbers, got {2!r}".format(
+                        name, index, item
+                    )
+                )
+            pair.append(end)
+        out.append(pair)
+    return out
 
 
 @dataclass(frozen=True)

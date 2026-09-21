@@ -32,6 +32,7 @@ def test_the_example_params_file_validates(examples_dir: Path) -> None:
         "method",
         "keep_intensity",
         "output_name",
+        "overlap_edges",
     )
 
 
