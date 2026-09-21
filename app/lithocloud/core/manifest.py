@@ -92,6 +92,10 @@ _IO_SCHEMA: dict[str, Any] = {
         "type": {"type": "string", "enum": list(ARTIFACT_TYPES)},
         "multiple": {"type": "boolean"},
         "optional": {"type": "boolean"},
+        # outputs only (2026-09-21): the engine may emit any number of
+        # outputs.json keys '<key><n>' (registered_scan1, registered_scan2, ...)
+        # and each registers as its own artifact.
+        "indexed": {"type": "boolean"},
     },
 }
 
@@ -150,6 +154,8 @@ class IOSpec:
     type: str
     multiple: bool = False
     optional: bool = False
+    #: outputs only: registers every outputs.json key '<key><n>' separately.
+    indexed: bool = False
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "IOSpec":
@@ -158,6 +164,7 @@ class IOSpec:
             type=data["type"],
             multiple=bool(data.get("multiple", False)),
             optional=bool(data.get("optional", False)),
+            indexed=bool(data.get("indexed", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -166,7 +173,18 @@ class IOSpec:
             out["multiple"] = True
         if self.optional:
             out["optional"] = True
+        if self.indexed:
+            out["indexed"] = True
         return out
+
+    def matches(self, output_key: str) -> bool:
+        """Whether an outputs.json key belongs to this slot."""
+        if output_key == self.key:
+            return not self.indexed
+        if not self.indexed or not output_key.startswith(self.key):
+            return False
+        suffix = output_key[len(self.key):]
+        return suffix.isdigit()
 
 
 @dataclass(frozen=True)
@@ -365,6 +383,12 @@ def _check_semantics(engine: Engine, path: Path) -> None:
                         prefix
                         + "action {0!r}: output {1!r} may not be 'multiple' or "
                         "'optional'".format(action.id, slot.key)
+                    )
+                if slot_name == "input" and slot.indexed:
+                    raise ManifestError(
+                        prefix
+                        + "action {0!r}: input {1!r}: 'indexed' applies to outputs "
+                        "only".format(action.id, slot.key)
                     )
 
     _check_command_template(engine, prefix)

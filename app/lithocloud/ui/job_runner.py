@@ -424,20 +424,14 @@ class JobRunner(QObject):
         for value in request.input_ids().values():
             input_ids.extend(value if isinstance(value, list) else [value])
 
-        for slot in request.action.outputs:
-            files = mapping.get(slot.key)
-            if not files:
-                problems.append(
-                    "declared output {0!r} missing from {1}".format(slot.key, OUTPUTS_NAME)
-                )
-                continue
+        def register(slot, key: str, files) -> None:
             if isinstance(files, str):
                 files = [files]
             try:
                 registered.append(
                     core_artifacts.write_provenance(
                         job.run_dir,
-                        key=slot.key,
+                        key=key,
                         type=slot.type,
                         files=files,
                         engine=request.engine.id,
@@ -448,10 +442,35 @@ class JobRunner(QObject):
                     )
                 )
             except core_artifacts.ArtifactError as exc:
-                problems.append("output {0!r}: {1}".format(slot.key, exc))
+                problems.append("output {0!r}: {1}".format(key, exc))
+
+        for slot in request.action.outputs:
+            if slot.indexed:
+                # '<key><n>' keys, in numeric order - one artifact per index
+                # (2026-09-21: a project's per-scan clouds and transforms)
+                matched = sorted(
+                    (k for k in mapping if slot.matches(k) and mapping[k]),
+                    key=lambda k: int(k[len(slot.key):]),
+                )
+                if not matched:
+                    problems.append(
+                        "declared output {0!r} (indexed) has no {0}<n> entry in {1}".format(
+                            slot.key, OUTPUTS_NAME
+                        )
+                    )
+                for key in matched:
+                    register(slot, key, mapping[key])
+                continue
+            files = mapping.get(slot.key)
+            if not files:
+                problems.append(
+                    "declared output {0!r} missing from {1}".format(slot.key, OUTPUTS_NAME)
+                )
+                continue
+            register(slot, slot.key, files)
 
         for key in mapping:
-            if all(slot.key != key for slot in request.action.outputs):
+            if not any(slot.matches(key) for slot in request.action.outputs):
                 problems.append(
                     "{0} names {1!r}, which the manifest does not declare".format(
                         OUTPUTS_NAME, key
