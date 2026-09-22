@@ -141,11 +141,18 @@ def test_an_indexed_output_with_no_entries_is_a_warning(qtbot, tmp_path: Path) -
 
 
 def test_existing_manifests_are_unaffected() -> None:
-    """Every engine on disk still loads; none of them uses 'indexed' yet."""
+    """Every engine on disk still loads; the only indexed slots are the ricp
+    project's per-scan outputs."""
     root = Path(__file__).resolve().parents[1]
+    indexed: list[tuple[str, str, str]] = []
     for path in sorted((root / "engines").glob("*/engine.yaml")):
         engine = load_manifest(path)
         for action in engine.actions:
-            assert all(not s.indexed for s in action.inputs + action.outputs), path
+            assert all(not s.indexed for s in action.inputs), path
+            indexed += [(engine.id, action.id, s.key) for s in action.outputs if s.indexed]
+    assert indexed == [
+        ("ricp", "register_project", "registered_scan"),
+        ("ricp", "register_project", "transform_scan"),
+    ]
     data = json.loads((root / "docs" / "examples" / "params_example.json").read_text(encoding="utf-8"))
     assert data["fields"]

@@ -1,22 +1,23 @@
-# ricp plug, v2 (rebuilt 2026-09-09 for ricp-engine 0.2.0).
+# ricp plug (ricp-engine 0.2.0 API 0.4.0; project API 0.3.0).
 #
-# The science lives read-only in ../../../ricp/ricp (its own repo). Since
-# 0.2.0 that repo ships ricp_engine.py - a typed UI boundary
-# (RegistrationConfig -> run_registration -> RegistrationResult) - and is
-# installed EDITABLE into the rockslope env, so the adapter simply imports it.
-# This folder holds only this manifest, params_register.json and adapter.py:
-# a translator with no science in it. Zero changes inside ../ricp.
+# The science lives read-only in ../../../ricp/ricp (its own repo) and is
+# installed EDITABLE into the rockslope env; the adapter imports it. This
+# folder holds only this manifest, the params files and adapter.py: a
+# translator with no science in it. Zero changes inside ../ricp.
 #
-# ONE action. The "rerun after reviewing a poor coarse result" case is this
-# same action with a coarse transform artifact supplied (or accept_poor_coarse
-# ticked) - no second button needed; adding one later is a manifest-only edit.
+# Actions:
+#   register              one ALIGN onto one REF (unchanged since v2)
+#   register_project      one REF + N aligns, independent or multiway
+#   validate_stable_areas post-hoc M3C2 check on USER-declared stable cores
 id: ricp
 name: R-ICP Registration
-version: 0.2.0   # tracks ricp-engine (pyproject.toml in ../ricp/ricp)
+version: 0.4.1   # tracks ricp-engine (pyproject.toml in ../ricp/ricp at 7247c30)
 description: >
   Recursive-filter ICP registration (Aubertin 2025): coarse placement, then
   the fine methods (paper-c2c, local-plane, m3c2) with a method comparison
-  and a registration-uncertainty statement for LoD analysis.
+  and a registration-uncertainty statement for LoD analysis. Multi-scan
+  projects fit every pair sequentially, then (multiway) a reference-anchored
+  pose graph.
 
 actions:
   - id: register
@@ -46,7 +47,61 @@ actions:
       - {key: plots, type: figure}            # coarse overlays + the method's plots
     params: params_register.json
 
+  - id: register_project
+    label: Register a multi-scan project onto REF (independent / multiway)
+    description: >
+      REF is index 0; the ALIGN rows are indices 1, 2, ... in list order (the
+      row numbers shown are those indices). Every pair runs sequentially in
+      this console, and the engine's own coarse-review window opens for EACH
+      pair - coarse review is pinned to 'always' for projects, so you confirm
+      every placement (a poor one can be cancelled there; 'accept_poor_coarse'
+      only after inspecting the overlays). Cancel in the studio kills the
+      whole process: nothing registers, but every finished pair's folder
+      remains inside the run folder for inspection. A run that finishes with
+      some pairs failed ends PARTIAL: it exits normally, the log carries an
+      unmistakable PARTIAL banner, and the clouds that did register are
+      registered. Multiway per-scan uncertainty is reported as the engine's
+      own sentence, never as a number; a SUSPECT edge means unresolved loop
+      disagreement, not a proven pairwise failure; the 95th-percentile
+      transform disagreement is NOT a surface error.
+    interactive: true
+    inputs:
+      - {key: reference, type: pointcloud}
+      - {key: aligns, type: pointcloud, multiple: true}
+    outputs:
+      - {key: registered_scan, type: pointcloud, indexed: true}   # registered_scan<i>
+      - {key: transform_scan, type: transform, indexed: true}     # transform_scan<i>, scan -> REF
+      - {key: project_summary, type: report}                      # project_summary.json/.txt/.csv
+      - {key: pose_graph_edges, type: table}                      # multiway only
+      - {key: engine_outputs, type: report}                       # the engine's own outputs.json
+      - {key: project_result, type: report}                       # ricp_project_result.json (ours)
+    params: params_project.json
+
+  - id: validate_stable_areas
+    label: Validate a finished project on stable areas (post-hoc)
+    description: >
+      Signed M3C2 distances on stable cores YOU declare - the engine never
+      invents stable areas. Pick the previous project run's project_summary
+      (or project_result) artifact, and Browse to your stable_areas.json
+      (core-point paths inside it are relative to that file; coordinates in
+      the FINAL REF frame). Nothing is re-registered and nothing is
+      overwritten. The residuals include scanner noise, surface roughness
+      and any real surface change: they are NOT absolute registration
+      accuracy and NOT a complete LoD95. Insufficient support is reported
+      as unavailable, never as zero.
+    interactive: false
+    inputs:
+      - {key: project, type: report}
+      - {key: manifest, type: report}
+    outputs:
+      - {key: stable_validation, type: report}         # JSON + TXT (+ source note)
+      - {key: stable_validation_table, type: table}    # CSV
+    params: params_validate.json
+
 run:
+  # '--aligns' is a whole-token placeholder so each chosen file is its own
+  # argument; for actions without that input the token is dropped and the
+  # bare flag takes zero values.
   command: >-
     {python} adapter.py {action}
     --params {params_file}
@@ -54,4 +109,7 @@ run:
     --reference={input:reference}
     --align={input:align}
     --coarse-artifact={input:coarse}
+    --project={input:project}
+    --manifest={input:manifest}
+    --aligns {input:aligns}
   cwd: .

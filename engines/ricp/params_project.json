@@ -1,0 +1,323 @@
+{
+  "version": 2,
+  "fields": [
+    {
+      "key": "mode",
+      "label": "Project mode",
+      "type": "choice",
+      "default": "independent",
+      "choices": [
+        "independent",
+        "multiway"
+      ],
+      "help": "independent: every align scan is registered directly onto REF (edges 0->1, 0->2, ... are implied). multiway: you declare which scans overlap; the pairwise transforms are then fitted jointly into one reference-anchored pose graph."
+    },
+    {
+      "key": "fine_method",
+      "label": "Fine method",
+      "type": "choice",
+      "default": "local-plane",
+      "choices": [
+        "paper-c2c",
+        "local-plane",
+        "m3c2"
+      ],
+      "help": "The ONE production fine method every pair of the project uses. 'all' is diagnostic-only and is not offered for projects: a production set must not mix method-dependent transforms (ENGINE_GUIDE section 5)."
+    },
+    {
+      "key": "plane_radius",
+      "label": "Plane radius (m)",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "local-plane"
+        ]
+      },
+      "help": "Neighborhood radius used to fit local planes. Empty = engine default (4x measured spacing). Must be a finite number > 0. Used by local-plane (and 'all')."
+    },
+    {
+      "key": "m3c2_core_points",
+      "label": "M3C2 core points",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "help": "Number of representative locations used by the M3C2-guided registration. More points increase coverage and processing time. Empty = engine default (5000). Whole number >= 100 (the engine's own bound)."
+    },
+    {
+      "key": "stability_seeds",
+      "label": "Stability seeds",
+      "type": "str",
+      "default": "0,1,2",
+      "help": "Comma-separated non-negative integers; each seed is one extra subsampling draw for the method-specific registration uncertainty. The default 0,1,2 is provisional - use 0,1,2,3,4,5,6,7,8,9 for a final run. Empty = stability analysis off."
+    },
+    {
+      "key": "seed",
+      "label": "Seed",
+      "type": "int",
+      "default": 0,
+      "min": 0,
+      "help": "Subsampling RNG seed for the main run."
+    },
+    {
+      "key": "overlap_edges",
+      "label": "Overlap edges (multiway)",
+      "type": "edge_list",
+      "default": [],
+      "visible_when": {
+        "field": "mode",
+        "in": [
+          "multiway"
+        ]
+      },
+      "help": "[fixed, moving] scan indices: 0 is REF, 1..N are the align rows in list order; the moving scan's transform maps INTO the fixed scan. Every scan must connect to scan 0. A chain without an extra loop cannot check loop consistency - add a closing edge (e.g. 3 -> 0) when the scans genuinely overlap. Either direction is the same connection."
+    },
+    {
+      "key": "m3c2_normal_radius",
+      "label": "M3C2 normal radius (m)",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "help": "M3C2 normal-estimation radius in metres. Empty = engine default (6x measured spacing). Finite number > 0.",
+      "group": "Advanced",
+      "collapsed": true
+    },
+    {
+      "key": "m3c2_projection_radius",
+      "label": "M3C2 projection radius (m)",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "help": "M3C2 projection-cylinder radius in metres. Empty = engine default (4x measured spacing). Finite number > 0.",
+      "group": "Advanced"
+    },
+    {
+      "key": "m3c2_max_depth",
+      "label": "M3C2 max depth (m)",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "help": "M3C2 projection half-depth in metres. Empty = engine default (10x measured spacing). Finite number > 0.",
+      "group": "Advanced"
+    },
+    {
+      "key": "m3c2_scale_mode",
+      "label": "M3C2 scale mode",
+      "type": "choice",
+      "default": "",
+      "choices": [
+        "",
+        "adaptive",
+        "fixed"
+      ],
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "help": "adaptive expands normal/projection radii per core through a bounded density-support ladder; fixed uses exactly the base radii. Empty = engine default (adaptive).",
+      "group": "Advanced"
+    },
+    {
+      "key": "m3c2_max_scale_factor",
+      "label": "M3C2 max scale factor",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "help": "Largest per-core radius multiplier in adaptive M3C2 mode. Empty = engine default (4). Finite number >= 1 (the engine's own bound).",
+      "group": "Advanced"
+    },
+    {
+      "key": "m3c2_max_levels",
+      "label": "M3C2 max levels",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "help": "M3C2 stable-support refinement limit. Empty = engine default (5). Whole number >= 1.",
+      "group": "Advanced"
+    },
+    {
+      "key": "reference_precision_mm",
+      "label": "Reference precision (mm, 1-sigma)",
+      "type": "float",
+      "default": 0.0,
+      "min": 0.0,
+      "help": "Calibrated one-sigma sensor/control precision of the REFERENCE cloud, in mm. NOT point spacing, NOT the C2C mean, NOT registration error. Leave 0 if unknown - the report will then say the survey-level LoD statement is incomplete.",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "group": "Advanced"
+    },
+    {
+      "key": "align_precision_mm",
+      "label": "Align precision (mm, 1-sigma)",
+      "type": "float",
+      "default": 0.0,
+      "min": 0.0,
+      "help": "Calibrated one-sigma sensor/control precision of the ALIGN cloud, in mm. NOT point spacing, NOT the C2C mean, NOT registration error. Leave 0 if unknown - the report will then say the survey-level LoD statement is incomplete.",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "group": "Advanced"
+    },
+    {
+      "key": "align_precisions_mm",
+      "label": "Per-scan align precisions (mm, 1-sigma)",
+      "type": "str",
+      "default": "",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "help": "Optional: one calibrated one-sigma precision per ALIGN scan, comma-separated, in list order (e.g. 2,2,30 for three scans with different sensors). Empty = use the single 'Align precision' value for every scan. NOT point spacing, NOT C2C mean, NOT registration error.",
+      "group": "Advanced"
+    },
+    {
+      "key": "registration_uncertainty_mm",
+      "label": "Registration uncertainty override (mm)",
+      "type": "str",
+      "default": "",
+      "help": "Override the method-specific registration uncertainty used by M3C2, in mm. Empty = let the engine estimate it (recommended).",
+      "visible_when": {
+        "field": "fine_method",
+        "in": [
+          "m3c2"
+        ]
+      },
+      "group": "Advanced"
+    },
+    {
+      "key": "continue_on_error",
+      "label": "Continue after a failed pair",
+      "type": "bool",
+      "default": true,
+      "help": "Engine default on: a pair that fails is kept in the report and later pairs still run; the project then ends PARTIAL. Off: stop at the first failed pair.",
+      "group": "Advanced"
+    },
+    {
+      "key": "coarse_mode",
+      "label": "Coarse mode",
+      "type": "choice",
+      "default": "auto",
+      "choices": [
+        "auto",
+        "gui",
+        "none"
+      ],
+      "help": "auto = SCENE-style top-view correlation, then the engine's own review window opens for EVERY pair (coarse review is pinned to 'always' for projects); gui = manual pick + nudge tool; none = clouds already roughly placed.",
+      "group": "Advanced"
+    },
+    {
+      "key": "accept_poor_coarse",
+      "label": "Accept a poor coarse placement",
+      "type": "bool",
+      "default": false,
+      "help": "Continue into fine registration even when a pair's automatic coarse placement scored poorly. Tick ONLY after inspecting the coarse overlays. Default off keeps the operator gate.",
+      "group": "Advanced"
+    },
+    {
+      "key": "fit_tilt",
+      "label": "Fit tilt after coarse placement",
+      "type": "bool",
+      "default": true,
+      "help": "DEM-difference roll/pitch estimation after the coarse placement (engine default on).",
+      "group": "Advanced"
+    },
+    {
+      "key": "target_points",
+      "label": "Target points per cloud",
+      "type": "str",
+      "default": "auto",
+      "help": "'auto' (spacing-driven) or a whole number >= 2000. Cannot exceed the max registration points.",
+      "group": "Advanced"
+    },
+    {
+      "key": "max_registration_points",
+      "label": "Max registration points",
+      "type": "str",
+      "default": "",
+      "help": "Hard cap on registration subsample size per cloud. Empty = the installed ricp's own default (1,500,000 in ricp-engine 0.2.0), so this never drifts from the engine.",
+      "group": "Advanced"
+    },
+    {
+      "key": "max_evaluation_points",
+      "label": "Max evaluation points",
+      "type": "str",
+      "default": "",
+      "help": "Hard cap on points used for quality evaluation. Empty = the installed ricp's own default (500,000 in ricp-engine 0.2.0), so this never drifts from the engine.",
+      "group": "Advanced"
+    },
+    {
+      "key": "dense_report_points",
+      "label": "Dense report points",
+      "type": "str",
+      "default": "auto",
+      "help": "'auto', 'off', or a whole number >= 100: points in the dense spatial-residual report.",
+      "group": "Advanced"
+    },
+    {
+      "key": "overlap",
+      "label": "Overlap crop radius (m)",
+      "type": "str",
+      "default": "auto",
+      "help": "Common-overlap crop after coarse placement: 'auto', 'off', or a positive number in metres.",
+      "group": "Advanced"
+    },
+    {
+      "key": "report_thresholds_mm",
+      "label": "Report thresholds (mm)",
+      "type": "str",
+      "default": "auto",
+      "help": "Distance thresholds used in the reports, as the engine expects them; 'auto' = engine default.",
+      "group": "Advanced"
+    },
+    {
+      "key": "extra_arguments",
+      "label": "Extra engine arguments",
+      "type": "str",
+      "default": "",
+      "help": "Advanced: additional ricp.py arguments passed to EVERY pair, space-separated. Project-controlled options (-o, --fine-method, --coarse-*, --stability-seeds, --seed, --target-points, --max-*, --dense-report-points, --overlap, --report-thresholds-mm, --m3c2-*-precision-mm, --m3c2-registration-uncertainty-mm) are rejected by the engine here. Empty = none.",
+      "group": "Advanced"
+    }
+  ]
+}

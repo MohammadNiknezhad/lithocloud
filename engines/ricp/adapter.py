@@ -41,8 +41,17 @@ from typing import Any
 OUTPUTS_NAME = "outputs.json"
 ERROR_NAME = "adapter_error.txt"
 RESULT_NAME = "ricp_result.json"
+PROJECT_RESULT_NAME = "ricp_project_result.json"
 
-ACTIONS = ("register",)
+ACTIONS = ("register", "register_project", "validate_stable_areas")
+
+#: Project API this plug was written against; a test pins the installed one.
+PROJECT_API_VERSION_EXPECTED = "0.3.0"
+#: Production methods a project may use - the API itself rejects "all".
+PROJECT_METHODS = ("paper-c2c", "local-plane", "m3c2")
+#: Pinned for projects (spec decision 1): every pair is confirmed by the
+#: operator in the engine's own window. Never a form field.
+PROJECT_COARSE_REVIEW = "always"
 
 #: What ricp_engine.validate() accepts; a test pins this to
 #: ricp_engine.SUPPORTED_INPUT_SUFFIXES. ``.laz`` is converted, never passed.
@@ -83,8 +92,12 @@ def _engine():
 # --------------------------------------------------------------------------- #
 
 
-def prepare_input(path: str, run_dir: Path, *, what: str) -> str:
-    """Return a path the engine can read, converting .laz to .las if needed."""
+def prepare_input(path: str, run_dir: Path, *, what: str, stem_prefix: str = "") -> str:
+    """Return a path the engine can read, converting .laz to .las if needed.
+
+    *stem_prefix* keeps converted copies apart when several inputs share a
+    file name (a project's scan01_x.las, scan02_x.las, ...).
+    """
     if not path:
         raise AdapterError("{0}: no cloud chosen".format(what))
     source = Path(path)
@@ -103,7 +116,7 @@ def prepare_input(path: str, run_dir: Path, *, what: str) -> str:
                     what, source.name
                 )
             ) from None
-        target = run_dir / (source.stem + ".las")
+        target = run_dir / (stem_prefix + source.stem + ".las")
         print(
             "adapter: {0} is LAZ (ricp cannot read it) - writing an "
             "uncompressed copy to {1}".format(source.name, target.name),
@@ -354,6 +367,499 @@ def method_argument_tokens(params: dict) -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
+# Projects: graph + config                          (pure, unit-tested)
+# --------------------------------------------------------------------------- #
+
+
+def validate_project_graph(mode: str, align_count: int, edges) -> tuple[list[tuple[int, int]], list[str]]:
+    """Check the declared overlap graph before any cloud loads.
+
+    Returns ``(edges, notes)``. Independent mode uses the implied edges
+    0->1, 0->2, ... and IGNORES any declared list (decided 2026-09-21: a
+    hidden field never blocks another mode; a note says they were not used).
+    Multiway rules mirror the engine's own: indices within 0..N, no
+    self-edge, no duplicate connection in either direction, every scan
+    connected to scan 0. A tree with no redundant loop is allowed but noted:
+    loop consistency cannot be checked without a closing edge.
+    """
+    count = align_count + 1
+    declared = [(int(f), int(m)) for f, m in (edges or [])]
+    if mode == "independent":
+        notes = []
+        if declared:
+            notes.append(
+                "independent mode: the {0} declared overlap edge(s) were not used - "
+                "each align scan is registered directly onto REF".format(len(declared))
+            )
+        return [], notes
+    if mode != "multiway":
+        raise AdapterError("mode: expected 'independent' or 'multiway', got {0!r}".format(mode))
+    if not declared:
+        raise AdapterError(
+            "multiway mode needs at least one overlap edge (fixed -> moving scan "
+            "indices; 0 is REF, 1..{0} are the align rows). A chain without an "
+            "extra loop cannot check loop consistency.".format(align_count)
+        )
+    undirected: set[tuple[int, int]] = set()
+    adjacency: dict[int, set[int]] = {i: set() for i in range(count)}
+    for fixed, moving in declared:
+        if fixed == moving:
+            raise AdapterError("overlap_edges: {0} -> {0} is a self-edge".format(fixed))
+        if not (0 <= fixed < count and 0 <= moving < count):
+            raise AdapterError(
+                "overlap_edges: {0} -> {1} references a scan outside 0..{2} "
+                "(0 = REF, {3} align row(s))".format(fixed, moving, count - 1, align_count)
+            )
+        key = (min(fixed, moving), max(fixed, moving))
+        if key in undirected:
+            raise AdapterError(
+                "overlap_edges: scans {0} and {1} are connected twice - either "
+                "direction is the same connection".format(*key)
+            )
+        undirected.add(key)
+        adjacency[fixed].add(moving)
+        adjacency[moving].add(fixed)
+    seen = {0}
+    stack = [0]
+    while stack:
+        node = stack.pop()
+        for other in adjacency[node] - seen:
+            seen.add(other)
+            stack.append(other)
+    missing = sorted(set(range(count)) - seen)
+    if missing:
+        raise AdapterError(
+            "overlap_edges: scan(s) {0} have no path to REF (scan 0) - the "
+            "graph must be connected".format(", ".join(map(str, missing)))
+        )
+    notes = []
+    if len(undirected) == count - 1:
+        notes.append(
+            "the declared graph is a chain/tree with no redundant loop: loop "
+            "consistency cannot be checked; add a closing edge if those scans "
+            "genuinely overlap"
+        )
+    return declared, notes
+
+
+def _precision_list(text: str, count: int) -> "list[float] | None":
+    raw = str(text).strip()
+    if not raw:
+        return None
+    values: list[float] = []
+    for item in raw.replace(";", ",").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            value = float(item)
+        except ValueError:
+            raise AdapterError("align_precisions_mm: {0!r} is not a number".format(item)) from None
+        if not math.isfinite(value) or value < 0:
+            raise AdapterError("align_precisions_mm: values must be finite and >= 0")
+        values.append(value)
+    if len(values) != count:
+        raise AdapterError(
+            "align_precisions_mm: {0} value(s) given for {1} align scan(s) - one per "
+            "scan, in list order".format(len(values), count)
+        )
+    return values
+
+
+def build_project_kwargs(params: dict, reference: str, aligns, run_dir: "str | Path") -> tuple[dict[str, Any], list[str]]:
+    """Keyword arguments for ``RegistrationProjectConfig`` plus adapter notes.
+
+    Every shared field follows the single-pair mapping; the method flags
+    reuse ``method_argument_tokens`` unchanged (generated tokens first, the
+    user's extras after). ``coarse_review`` is never read from the form: it
+    is pinned to "always" (spec decision 1). ``fine_method`` must be one
+    production method - "all" is refused before the engine sees it.
+    """
+    p = dict(params)
+    aligns = [str(a) for a in aligns]
+    if not aligns:
+        raise AdapterError("register_project: add at least one ALIGN scan")
+
+    method = str(p.get("fine_method", "")).strip()
+    if method not in PROJECT_METHODS:
+        raise AdapterError(
+            "fine_method: a project needs ONE production method ({0}); {1!r} is not "
+            "allowed ('all' is diagnostic-only)".format(", ".join(PROJECT_METHODS), method)
+        )
+    mode = str(p.get("mode", "")).strip()
+    edges, notes = validate_project_graph(mode, len(aligns), p.get("overlap_edges", []))
+
+    registration_uncertainty = _text(p, "registration_uncertainty_mm")
+    kwargs: dict[str, Any] = {
+        "reference": reference,
+        "aligns": aligns,
+        "output_directory": str(run_dir),
+        "mode": mode,
+        "fine_method": method,
+        "overlap_edges": [tuple(e) for e in edges],
+        "stability_seeds": _seeds(_text(p, "stability_seeds")),
+        "seed": int(p["seed"]),
+        "reference_precision_mm": float(p["reference_precision_mm"]),
+        "align_precision_mm": float(p["align_precision_mm"]),
+        "align_precisions_mm": _precision_list(_text(p, "align_precisions_mm"), len(aligns)),
+        "registration_uncertainty_mm": (
+            None
+            if not registration_uncertainty
+            else _float_or_literal(registration_uncertainty, (), what="registration_uncertainty_mm")
+        ),
+        "coarse_mode": p["coarse_mode"],
+        "coarse_review": PROJECT_COARSE_REVIEW,
+        "accept_poor_coarse": bool(p.get("accept_poor_coarse", False)),
+        "fit_tilt": bool(p.get("fit_tilt", True)),
+        "target_points": _int_or_literal(_text(p, "target_points"), ("auto",), what="target_points"),
+        "dense_report_points": _int_or_literal(
+            _text(p, "dense_report_points"), ("auto", "off"), what="dense_report_points"
+        ),
+        "overlap": _float_or_literal(_text(p, "overlap"), ("auto", "off"), what="overlap"),
+        "report_thresholds_mm": _text(p, "report_thresholds_mm") or "auto",
+        "extra_arguments": tuple(method_argument_tokens(p))
+        + tuple(_text(p, "extra_arguments").split()),
+        "continue_on_error": bool(p.get("continue_on_error", True)),
+    }
+    for key in ("max_registration_points", "max_evaluation_points"):
+        text = _text(p, key)
+        if text:
+            kwargs[key] = _int_or_literal(text, (), what=key)
+    return kwargs, notes
+
+
+# --------------------------------------------------------------------------- #
+# Projects: result -> outputs.json + log summary
+# --------------------------------------------------------------------------- #
+
+
+def _rel_in(run_dir: Path, path) -> "str | None":
+    if path is None:
+        return None
+    path = Path(path)
+    if not path.is_file():
+        return None
+    try:
+        return path.resolve().relative_to(Path(run_dir).resolve()).as_posix()
+    except ValueError:
+        return None
+
+
+def collect_project_outputs(result, run_dir: "str | Path") -> tuple[dict[str, list[str]], list[str]]:
+    """``({output_key: [files relative to run_dir]}, notes)`` for a project.
+
+    Per scan: ``registered_scan<i>`` when its cloud is on disk and
+    ``transform_scan<i>`` when its transform is (a transform-only scan
+    registers the transform alone - decided 2026-09-21). Then the summary,
+    the pose-graph table (multiway), the engine's own outputs.json, and our
+    ricp_project_result.json. Every path comes from the result object.
+    """
+    run_dir = Path(run_dir)
+    outputs: dict[str, list[str]] = {}
+    notes: list[str] = []
+
+    def put(key: str, *paths) -> None:
+        files = [r for r in (_rel_in(run_dir, p) for p in paths) if r]
+        if files:
+            outputs[key] = files
+
+    for scan in result.scans:
+        if scan.scan_index == 0:
+            continue
+        put("registered_scan{0}".format(scan.scan_index), scan.registered_cloud_path)
+        put("transform_scan{0}".format(scan.scan_index), scan.transform_path)
+        if scan.transform_path and not scan.registered_cloud_path:
+            notes.append(
+                "scan {0} ({1}) is transform-only: its global transform registers, "
+                "no registered cloud exists".format(scan.scan_index, Path(scan.path).name)
+            )
+
+    artifacts = dict(result.artifacts)
+    put(
+        "project_summary",
+        artifacts.get("project_summary"),
+        artifacts.get("project_summary_text"),
+        artifacts.get("project_summary_csv"),
+    )
+    put("pose_graph_edges", artifacts.get("pose_graph_edges_csv"), artifacts.get("pose_graph_edges"))
+    put("engine_outputs", artifacts.get("outputs"))
+    put("project_result", run_dir / PROJECT_RESULT_NAME)
+    return outputs, notes
+
+
+def _graph_rows(result) -> list[dict]:
+    path = dict(result.artifacts).get("pose_graph_edges")
+    if not path or not Path(path).is_file():
+        return []
+    try:
+        rows = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return rows if isinstance(rows, list) else []
+
+
+def _observability_warnings(result) -> list[dict]:
+    """Pairs whose method reports observability_complete is False (API 0.4.0)."""
+    findings: list[dict] = []
+    for pair in result.pairs:
+        for name, method in dict(pair.registration.methods).items():
+            complete = getattr(method, "observability_complete", None)
+            entry = {
+                "edge_number": pair.edge_number,
+                "fixed_index": pair.fixed_index,
+                "moving_index": pair.moving_index,
+                "method": name,
+                "observable_rank": getattr(method, "observable_rank", None),
+                "required_observable_rank": getattr(method, "required_observable_rank", None),
+                "observability_complete": complete,
+                "scaled_information_condition": getattr(method, "scaled_information_condition", None),
+                "fitting_diagnostics": {
+                    "fitting_tolerance_m": getattr(method, "fitting_tolerance_m", None),
+                    "fitting_tolerance_is_registration_uncertainty": getattr(
+                        method, "fitting_tolerance_is_registration_uncertainty", None
+                    ),
+                },
+            }
+            findings.append(entry)
+    return findings
+
+
+def project_summary_lines(result, kwargs: dict, notes: list[str]) -> list[str]:
+    """The log summary, worded the way the engine guide requires."""
+    ok_pairs = sum(1 for p in result.pairs if p.transform is not None)
+    n_pairs = len(result.pairs)
+    lines: list[str] = ["", "=" * 72]
+    if result.status == "partial":
+        lines.append("=== PROJECT PARTIAL - {0} of {1} pairs succeeded ===".format(ok_pairs, n_pairs))
+    else:
+        lines.append("=== PROJECT {0} - {1} of {2} pairs succeeded ===".format(
+            result.status.upper(), ok_pairs, n_pairs))
+    lines.append("mode: {0}   fine method: {1}   coarse review: {2}".format(
+        result.mode, result.fine_method, kwargs.get("coarse_review")))
+    if result.error_message:
+        lines.append("engine message: {0}".format(result.error_message))
+    for note in notes:
+        lines.append("note: " + note)
+
+    lines.append("")
+    lines.append("SCANS (uncertainty is the engine's own status sentence)")
+    for scan in result.scans:
+        if scan.scan_index == 0:
+            lines.append("  [0] {0}: fixed reference".format(Path(scan.path).name))
+            continue
+        line = "  [{0}] {1}: {2}; uncertainty: {3}".format(
+            scan.scan_index, Path(scan.path).name, scan.status, scan.uncertainty_status)
+        sigma = getattr(scan, "registration_uncertainty_1sigma_m", None)
+        if result.mode == "independent" and sigma is not None and sigma > 0:
+            line += " ({0:.3f} mm, direct pair, 1-sigma)".format(1000.0 * sigma)
+        lines.append(line)
+
+    for finding in _observability_warnings(result):
+        if finding["observability_complete"] is False:
+            lines.append(
+                "WARNING: pair {0} [{1} <- {2}] method {3}: observability incomplete "
+                "(rank {4} of {5}) - the transform is not fully constrained".format(
+                    finding["edge_number"], finding["fixed_index"], finding["moving_index"],
+                    finding["method"], finding["observable_rank"],
+                    finding["required_observable_rank"]))
+
+    rows = _graph_rows(result)
+    if rows:
+        lines.append("")
+        lines.append("POSE-GRAPH EDGES (95th-percentile transform disagreement is NOT surface error)")
+        for row in rows:
+            metric = row.get("consistency_metric")
+            p95 = row.get("postfit_p95_point_displacement_m")
+            if metric == "p95-transform-displacement" and p95 is not None:
+                measure = "95th-percentile transform disagreement {0:.3f} mm".format(1000.0 * p95)
+            else:
+                measure = "legacy extent heuristic (fallback: {0}) - not the headline number".format(metric)
+            lines.append("  edge {0} [{1} <- {2}]: {3}; {4}".format(
+                row.get("edge_number"), row.get("fixed_index"), row.get("moving_index"),
+                measure, row.get("consistency")))
+        if any(row.get("consistency") == "SUSPECT" for row in rows):
+            lines.append(
+                "  SUSPECT = unresolved loop disagreement, not proven pairwise failure. "
+                "Decide with independent stable surfaces or controls.")
+    lines.append("=" * 72)
+    return lines
+
+
+def _project_record(result, kwargs: dict, notes: list[str]) -> dict:
+    return {
+        "project_status": result.status,
+        "project_api_version_expected": PROJECT_API_VERSION_EXPECTED,
+        "mode": result.mode,
+        "fine_method": result.fine_method,
+        "config": {k: (list(v) if isinstance(v, tuple) else v) for k, v in kwargs.items()},
+        "adapter_notes": notes,
+        "observability": _observability_warnings(result),
+        "pose_graph_edges": _graph_rows(result),
+        "engine": result.as_dict(),
+    }
+
+
+def _stamp_run_manifest(run_dir: Path, status: str) -> None:
+    """Best-effort: add project_status to the shell's run manifest (decision 4)."""
+    path = run_dir / "manifest.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["project_status"] = status
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    except (OSError, ValueError):
+        pass
+
+
+def run_project(args, params: dict, run_dir: Path, on_progress) -> int:
+    try:
+        import ricp_project  # noqa: PLC0415
+    except ImportError as exc:
+        raise AdapterError(
+            "ricp_project is not importable - 'pip install -e .' in ../ricp/ricp "
+            "(project API 0.3.0 ships with ricp-engine 0.2.0): {0}".format(exc)
+        ) from None
+
+    reference = prepare_input(args.reference, run_dir, what="reference", stem_prefix="scan00_")
+    aligns = [
+        prepare_input(path, run_dir, what="align {0}".format(i), stem_prefix="scan{0:02d}_".format(i))
+        for i, path in enumerate(args.aligns, 1)
+    ]
+    kwargs, notes = build_project_kwargs(params, reference, aligns, run_dir)
+    config = ricp_project.RegistrationProjectConfig(**kwargs)
+    try:
+        config.validate()
+    except ricp_project.RICPConfigurationError as exc:
+        raise AdapterError("invalid project configuration - {0}".format(exc)) from None
+
+    for note in notes:
+        print("adapter: note: " + note, flush=True)
+    print("adapter: RegistrationProjectConfig " + json.dumps(
+        {k: (list(v) if isinstance(v, tuple) else v) for k, v in kwargs.items()}, default=str),
+        flush=True)
+
+    result = ricp_project.run_registration_project(config, on_progress=on_progress)
+
+    record = _project_record(result, kwargs, notes)
+    with open(run_dir / PROJECT_RESULT_NAME, "w", encoding="utf-8") as handle:
+        json.dump(record, handle, indent=2, default=str)
+    _stamp_run_manifest(run_dir, result.status)
+
+    for line in project_summary_lines(result, kwargs, notes):
+        print(line, flush=True)
+
+    if result.status in ("failed", "cancelled"):
+        lines = ["ERROR: project {0}".format(result.status)]
+        if result.error_message:
+            lines.append(result.error_message)
+        lines.append("Project folder (finished pairs remain for inspection): {0}".format(
+            result.project_directory))
+        lines.append("Full record: {0}".format(PROJECT_RESULT_NAME))
+        _write_error_file(run_dir, lines)
+        return 1
+
+    outputs, out_notes = collect_project_outputs(result, run_dir)
+    for note in out_notes:
+        print("adapter: " + note, flush=True)
+    with open(run_dir / OUTPUTS_NAME, "w", encoding="utf-8") as handle:
+        json.dump(outputs, handle, indent=2)
+    print("adapter: outputs.json -> {0}".format(sorted(outputs)), flush=True)
+    return 0
+
+
+# --------------------------------------------------------------------------- #
+# Stable-area validation (post-hoc)
+# --------------------------------------------------------------------------- #
+
+
+def project_directory_from(picked: str) -> Path:
+    """The engine's project folder, from any artifact of a previous project run.
+
+    Accepts the folder itself, a file inside it (project_summary.json ...),
+    or our ricp_project_result.json at the run-folder root, which records the
+    project directory it belongs to.
+    """
+    if not picked:
+        raise AdapterError("project: pick the previous project run's project_summary or project_result artifact")
+    node = Path(picked).resolve()
+    if node.is_file() and node.name == PROJECT_RESULT_NAME:
+        try:
+            data = json.loads(node.read_text(encoding="utf-8"))
+            candidate = Path(data["engine"]["project_directory"])
+        except (OSError, ValueError, KeyError, TypeError):
+            raise AdapterError("project: {0} does not name its project directory".format(node)) from None
+        if (candidate / "project_summary.json").is_file():
+            return candidate
+        raise AdapterError("project: project directory {0} is not readable".format(candidate))
+    for folder in ([node] if node.is_dir() else []) + list(node.parents):
+        if (folder / "project_summary.json").is_file() and (folder / "project_metadata.json").is_file():
+            return folder
+    raise AdapterError(
+        "project: {0} is not inside an R-ICP project folder (no project_summary.json + "
+        "project_metadata.json found above it)".format(picked)
+    )
+
+
+def run_validation(args, run_dir: Path) -> int:
+    import shutil  # noqa: PLC0415
+
+    try:
+        import ricp_project_validation  # noqa: PLC0415
+    except ImportError as exc:
+        raise AdapterError("ricp_project_validation is not importable: {0}".format(exc)) from None
+
+    project_dir = project_directory_from(args.project)
+    manifest = Path(args.manifest) if args.manifest else None
+    if manifest is None or not manifest.is_file():
+        raise AdapterError("manifest: Browse to your stable_areas.json (user-declared stable cores)")
+
+    print("adapter: validating {0} on user-declared stable areas from {1}".format(project_dir, manifest), flush=True)
+    print("adapter: residuals include scanner noise, roughness and real change - NOT absolute "
+          "registration accuracy, NOT a complete LoD95", flush=True)
+    try:
+        artifacts = ricp_project_validation.validate_registration_project(project_dir, manifest)
+    except ricp_project_validation.RICPConfigurationError as exc:
+        raise AdapterError("stable-area validation refused - {0}".format(exc)) from None
+
+    # The engine writes into a new timestamped folder INSIDE the old project
+    # directory. Small reports are copied into this run so they can register
+    # (decided 2026-09-21); the engine's folder and the PLY maps stay in place.
+    copied: dict[str, str] = {}
+    for key in ("stable_validation", "stable_validation_text", "stable_validation_csv"):
+        source = artifacts.get(key)
+        if source and Path(source).is_file():
+            target = run_dir / Path(source).name
+            shutil.copy2(source, target)
+            copied[key] = target.name
+    source_note = run_dir / "stable_validation_source.txt"
+    source_note.write_text(
+        "Copies of the engine's stable-area validation reports.\n"
+        "Engine validation folder (also holds the signed-distance PLY maps):\n"
+        "  {0}\n"
+        "Project directory:\n  {1}\nManifest:\n  {2}\n"
+        "Residuals include scanner noise, surface roughness and any real surface change;\n"
+        "they are not absolute registration accuracy and not a complete LoD95.\n".format(
+            Path(artifacts["stable_validation"]).parent if "stable_validation" in artifacts else "?",
+            project_dir, manifest),
+        encoding="utf-8",
+    )
+    outputs: dict[str, list[str]] = {}
+    report = [copied[k] for k in ("stable_validation", "stable_validation_text") if k in copied]
+    if report:
+        outputs["stable_validation"] = report + [source_note.name]
+    if "stable_validation_csv" in copied:
+        outputs["stable_validation_table"] = [copied["stable_validation_csv"]]
+    with open(run_dir / OUTPUTS_NAME, "w", encoding="utf-8") as handle:
+        json.dump(outputs, handle, indent=2)
+    try:
+        status = json.loads(Path(artifacts["stable_validation"]).read_text(encoding="utf-8")).get("status")
+    except (OSError, ValueError, KeyError):
+        status = None
+    print("adapter: stable-area validation status: {0}; engine folder: {1}".format(
+        status, Path(artifacts["stable_validation"]).parent), flush=True)
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # RegistrationResult -> outputs.json                (pure, unit-tested)
 # --------------------------------------------------------------------------- #
 
@@ -486,6 +992,9 @@ def main(argv: "list[str] | None" = None) -> int:
     parser.add_argument("--reference", default="")
     parser.add_argument("--align", default="")
     parser.add_argument("--coarse-artifact", dest="coarse_artifact", default="")
+    parser.add_argument("--project", default="")
+    parser.add_argument("--manifest", default="")
+    parser.add_argument("--aligns", nargs="*", default=[])
     args = parser.parse_args(argv)
 
     run_dir = Path(args.out)
@@ -501,6 +1010,16 @@ def main(argv: "list[str] | None" = None) -> int:
     def on_progress(line: str) -> None:
         real_stdout.write(line + "\n")
         real_stdout.flush()
+
+    if args.action in ("register_project", "validate_stable_areas"):
+        try:
+            if args.action == "register_project":
+                return run_project(args, params, run_dir, on_progress)
+            return run_validation(args, run_dir)
+        except AdapterError as exc:
+            print("ERROR: {0}".format(exc), file=sys.stderr, flush=True)
+            _write_error_file(run_dir, "ERROR: {0}".format(exc))
+            return 2
 
     try:
         engine = _engine()

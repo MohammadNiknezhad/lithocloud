@@ -228,8 +228,10 @@ def test_the_engine_is_discovered(engine) -> None:
 
 
 def test_one_non_interactive_action_with_the_spec_slots(engine) -> None:
-    assert engine.version == "0.2.0"
-    assert engine.action_ids == ("register",)
+    assert engine.version == "0.4.1"       # ricp-engine's pyproject at main = 7247c30
+    # 'register' stays first and unchanged; the project actions (2026-09-21)
+    # are covered by test_ricp_project.py
+    assert engine.action_ids[0] == "register"
     action = engine.action("register")
     assert action.interactive is False
     assert [(s.key, s.type, s.optional) for s in action.inputs] == [
@@ -251,7 +253,7 @@ def test_the_old_plug_is_gone() -> None:
     source = (ENGINE_DIR / "adapter.py").read_text(encoding="utf-8")
     for old in ("_coarse_only", "build_cli_argv", "register_gui", "sys.path.insert"):
         assert old not in source, old
-    assert adapter.ACTIONS == ("register",)
+    assert adapter.ACTIONS == ("register", "register_project", "validate_stable_areas")
 
 
 # --------------------------------------------------------------------------- #
