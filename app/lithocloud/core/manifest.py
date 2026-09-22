@@ -110,6 +110,9 @@ ENGINE_SCHEMA: dict[str, Any] = {
         "name": {"type": "string", "minLength": 1},
         "version": {"type": "string", "minLength": 1},
         "description": {"type": "string"},
+        # A3 (2026-09-22): optional card icon, an SVG path relative to the
+        # engine folder. Absent -> the shell draws a neutral fallback.
+        "icon": {"type": "string", "minLength": 1},
         "actions": {
             "type": "array",
             "minItems": 1,
@@ -244,6 +247,19 @@ class Engine:
     path: Path = field(default_factory=Path)
     manifest_path: Path = field(default_factory=Path)
     description: str = ""
+    #: relative SVG path inside the engine folder, or None (A3)
+    icon: str | None = None
+
+    @property
+    def icon_path(self) -> Path | None:
+        """Absolute path of the card icon, or None when the manifest has none.
+
+        Existence is NOT checked here - the shell falls back to a neutral
+        icon when the file is missing or unreadable.
+        """
+        if not self.icon:
+            return None
+        return (self.path / self.icon).resolve()
 
     def action(self, action_id: str) -> Action:
         for item in self.actions:
@@ -332,6 +348,7 @@ def load_manifest(path: PathLike) -> Engine:
         path=path.parent.resolve(),
         manifest_path=path.resolve(),
         description=raw.get("description", ""),
+        icon=raw.get("icon"),
     )
     _check_semantics(engine, path)
     return engine
@@ -346,6 +363,23 @@ def _check_semantics(engine: Engine, path: Path) -> None:
             prefix
             + "id {0!r} must be lower-case letters, digits, '_' or '-'".format(engine.id)
         )
+
+    if engine.icon is not None:
+        icon = engine.icon.strip()
+        icon_path = Path(icon)
+        # Path.is_absolute() is False for '/x' on Windows (no drive); a leading
+        # separator still leaves the engine folder, so reject it explicitly.
+        rooted = icon_path.is_absolute() or icon[:1] in ("/", "\\")
+        if not icon or rooted or ".." in icon_path.parts:
+            raise ManifestError(
+                prefix
+                + "icon {0!r} must be a path relative to the engine folder, inside "
+                "it (no absolute path, no '..')".format(engine.icon)
+            )
+        if icon_path.suffix.lower() != ".svg":
+            raise ManifestError(
+                prefix + "icon {0!r} must be an .svg file".format(engine.icon)
+            )
 
     seen_actions: set[str] = set()
     for action in engine.actions:

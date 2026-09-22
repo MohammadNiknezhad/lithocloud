@@ -12,6 +12,7 @@
 id: ricp
 name: R-ICP Registration
 version: 0.4.1   # tracks ricp-engine (pyproject.toml in ../ricp/ricp at 7247c30)
+icon: icon.svg   # card icon (A3), relative to this folder
 description: >
   Recursive-filter ICP registration (Aubertin 2025): coarse placement, then
   the fine methods (paper-c2c, local-plane, m3c2) with a method comparison

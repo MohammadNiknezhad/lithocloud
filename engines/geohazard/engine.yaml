@@ -10,6 +10,7 @@
 id: geohazard
 name: Geohazard (structure & hazard)
 version: 1.0.0   # the sibling package has no __version__ string; adapter version
+icon: icon.svg   # card icon (A3), relative to this folder
 description: >
   Staged rock-slope pipeline: ingest, orientation, facets, edges, stereonet,
   hazard layers. Interactive by design (column mapping, north confirmation) -

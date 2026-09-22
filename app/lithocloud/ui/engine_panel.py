@@ -35,6 +35,7 @@ from lithocloud.core import (
     load_params,
 )
 
+from .engine_cards import ENGINE_ROLE, ICON_PATH_ROLE, configure_card_view
 from .input_files import ExternalFile, dialog_filter, is_expected_extension
 from .job_runner import JobRequest
 from .param_form import ParamForm
@@ -379,6 +380,7 @@ class EnginePanel(QWidget):
         self._last_browse_dir: Path | None = None
 
         self._engine_list = QListWidget(self)
+        configure_card_view(self._engine_list)  # A3: rounded cards, same widget
         self._engine_list.currentRowChanged.connect(self._on_engine_changed)
 
         self._action_combo = QComboBox(self)
@@ -416,7 +418,10 @@ class EnginePanel(QWidget):
         self._engines = list(engines)
         self._engine_list.clear()
         for engine in engines:
+            # the text stays for accessibility/search; the card paints itself
             item = QListWidgetItem("{0}  ({1})".format(engine.name, engine.version))
+            item.setData(ENGINE_ROLE, engine)
+            item.setData(ICON_PATH_ROLE, str(engine.icon_path) if engine.icon_path else "")
             if engine.description:
                 item.setToolTip(engine.description)
             self._engine_list.addItem(item)

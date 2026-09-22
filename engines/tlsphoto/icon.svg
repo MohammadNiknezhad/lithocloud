@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- LithoCloud engine card icon: tlsphoto. 64-unit grid, 2-unit margin.
+       A slope in ink, scanned by two fans: one from a ground tripod (left),
+       one from a drone dot (upper right). Where the fans meet on the slope
+       the overlap is filled in the red tint. Palette per BRAND.md. -->
+  <polygon points="26,46 44,32 50,36 36,52" fill="#FF4B66" opacity="0.85"/>
+  <polyline points="3,58 18,56 30,44 44,32 54,30 61,24"
+            fill="none" stroke="#1B2430" stroke-width="3.5"
+            stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- ground tripod -->
+  <circle cx="10" cy="40" r="3.4" fill="#1B2430"/>
+  <path d="M 10 43 L 6 54 M 10 43 L 14 54 M 10 43 L 10 52"
+        stroke="#1B2430" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+  <g stroke="#5A6470" stroke-width="2" stroke-linecap="round" fill="none">
+    <line x1="13" y1="38" x2="30" y2="44"/>
+    <line x1="13" y1="38" x2="36" y2="52"/>
+    <line x1="13" y1="38" x2="26" y2="46"/>
+  </g>
+  <!-- drone -->
+  <circle cx="52" cy="9" r="3.4" fill="#DE002B"/>
+  <path d="M 46 9 L 58 9" stroke="#DE002B" stroke-width="2.2" stroke-linecap="round"/>
+  <g stroke="#5A6470" stroke-width="2" stroke-linecap="round" fill="none">
+    <line x1="52" y1="13" x2="44" y2="32"/>
+    <line x1="52" y1="13" x2="50" y2="36"/>
+    <line x1="52" y1="13" x2="36" y2="52"/>
+  </g>
+</svg>
